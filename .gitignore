@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# SCADA project specific
+scada.db
+*.db
+*.sqlite
