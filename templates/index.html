@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Mini SCADA Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0d1117; color: #e6edf3; }
+
+    header {
+      background: #161b22; border-bottom: 1px solid #30363d;
+      padding: 16px 32px; display: flex; align-items: center; gap: 12px;
+    }
+    header h1 { font-size: 1.3rem; color: #58a6ff; }
+    .status-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #3fb950; animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; } 50% { opacity: 0.4; }
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px; padding: 28px 32px;
+    }
+    .card {
+      background: #161b22; border: 1px solid #30363d;
+      border-radius: 10px; padding: 24px; text-align: center;
+    }
+    .card .label { font-size: 0.8rem; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; }
+    .card .value { font-size: 2.8rem; font-weight: 700; margin: 10px 0; }
+    .card .unit  { font-size: 0.9rem; color: #8b949e; }
+    .card.alarm  { border-color: #f85149; }
+    .value.ok    { color: #3fb950; }
+    .value.alarm { color: #f85149; }
+
+    section { padding: 0 32px 28px; }
+    section h2 { margin-bottom: 14px; font-size: 1rem; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th, td { padding: 10px 14px; border-bottom: 1px solid #21262d; text-align: left; }
+    th { color: #8b949e; font-weight: 600; }
+    tr:hover td { background: #1c2128; }
+
+    .badge {
+      padding: 2px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600;
+    }
+    .badge.active { background: #3d1f1f; color: #f85149; }
+    .badge.ack    { background: #1f2d1f; color: #3fb950; }
+
+    .ack-btn {
+      padding: 4px 12px; border: 1px solid #30363d; border-radius: 6px;
+      background: transparent; color: #8b949e; cursor: pointer; font-size: 0.78rem;
+    }
+    .ack-btn:hover { background: #21262d; color: #e6edf3; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="status-dot"></div>
+  <h1>Mini SCADA Dashboard — RHEL 10</h1>
+  <span style="margin-left:auto; font-size:0.8rem; color:#8b949e" id="lastUpdate"></span>
+</header>
+
+<!-- Live Readings -->
+<div class="grid">
+  <div class="card" id="card-voltage">
+    <div class="label">Voltage</div>
+    <div class="value ok" id="val-voltage">--</div>
+    <div class="unit">Volts</div>
+  </div>
+  <div class="card" id="card-current">
+    <div class="label">Current</div>
+    <div class="value ok" id="val-current">--</div>
+    <div class="unit">Amperes</div>
+  </div>
+  <div class="card" id="card-temp">
+    <div class="label">Temperature</div>
+    <div class="value ok" id="val-temp">--</div>
+    <div class="unit">°C</div>
+  </div>
+</div>
+
+<!-- Alarm Table -->
+<section>
+  <h2>⚠ Active Alarms</h2>
+  <table>
+    <thead><tr><th>Time</th><th>Parameter</th><th>Value</th><th>Message</th><th>Status</th><th>Action</th></tr></thead>
+    <tbody id="alarm-body"><tr><td colspan="6" style="color:#8b949e">No alarms</td></tr></tbody>
+  </table>
+</section>
+
+<!-- History Table -->
+<section>
+  <h2>📋 Recent Readings</h2>
+  <table>
+    <thead><tr><th>Timestamp</th><th>Voltage (V)</th><th>Current (A)</th><th>Temperature (°C)</th></tr></thead>
+    <tbody id="history-body"></tbody>
+  </table>
+</section>
+
+<script>
+  const THRESHOLDS = {
+    voltage:     { min: 210, max: 245 },
+    current:     { min: 5,   max: 25  },
+    temperature: { min: 0,   max: 90  }
+  };
+
+  async function fetchLatest() {
+    const d = await fetch("/api/latest").then(r => r.json());
+    if (!d.voltage) return;
+
+    const fields = [
+      { key: "voltage",     id: "val-voltage", card: "card-voltage" },
+      { key: "current",     id: "val-current", card: "card-current" },
+      { key: "temperature", id: "val-temp",     card: "card-temp"    }
+    ];
+
+    fields.forEach(({ key, id, card }) => {
+      const val = d[key];
+      const el  = document.getElementById(id);
+      const cardEl = document.getElementById(card);
+      el.textContent = val.toFixed(1);
+      const inAlarm = val > THRESHOLDS[key].max || val < THRESHOLDS[key].min;
+      el.className   = "value " + (inAlarm ? "alarm" : "ok");
+      cardEl.className = "card " + (inAlarm ? "alarm" : "");
+    });
+
+    document.getElementById("lastUpdate").textContent =
+      "Last update: " + d.timestamp;
+  }
+
+  async function fetchAlarms() {
+    const alarms = await fetch("/api/alarms").then(r => r.json());
+    const tbody = document.getElementById("alarm-body");
+    if (!alarms.length) {
+      tbody.innerHTML = `<tr><td colspan="6" style="color:#8b949e">No alarms</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = alarms.map(a => `
+      <tr>
+        <td>${a.timestamp}</td>
+        <td>${a.parameter.toUpperCase()}</td>
+        <td>${a.value}</td>
+        <td>${a.message}</td>
+        <td><span class="badge ${a.acknowledged ? 'ack' : 'active'}">
+          ${a.acknowledged ? 'ACK' : 'ACTIVE'}
+        </span></td>
+        <td>${!a.acknowledged
+          ? `<button class="ack-btn" onclick="ackAlarm(${a.id})">Acknowledge</button>`
+          : '—'}</td>
+      </tr>`).join("");
+  }
+
+  async function fetchHistory() {
+    const rows = await fetch("/api/history").then(r => r.json());
+    document.getElementById("history-body").innerHTML =
+      rows.map(r => `
+        <tr>
+          <td>${r.timestamp}</td>
+          <td>${r.voltage}</td>
+          <td>${r.current}</td>
+          <td>${r.temperature}</td>
+        </tr>`).join("");
+  }
+
+  async function ackAlarm(id) {
+    await fetch(`/api/acknowledge/${id}`, { method: "POST" });
+    fetchAlarms();
+  }
+
+  function refresh() {
+    fetchLatest();
+    fetchAlarms();
+    fetchHistory();
+  }
+
+  refresh();
+  setInterval(refresh, 3000);  // auto-refresh every 3s
+</script>
+</body>
+</html>
