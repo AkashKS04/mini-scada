@@ -136,7 +136,7 @@ http://localhost:8080
 ## Roadmap
 
 ### Phase 1 — Fix the Foundation
-- [ ] Proper Modbus register mapping (40001 → Voltage, 40002 → Current, 40003 → Temperature)
+- [x] Proper Modbus register mapping (40001 → Voltage, 40002 → Current, 40003 → Temperature)
 - [ ] systemd service files for auto-start on boot (`modbus-server.service`, `modbus-client.service`, `dashboard.service`)
 
 ### Phase 2 — Make it SCADA-Like
