@@ -30,42 +30,83 @@
       color: #8b949e;
     }
 
+    /* ── Register Map Reference Bar ── */
+    .regmap {
+      display: flex;
+      gap: 12px;
+      padding: 16px 32px 0;
+      flex-wrap: wrap;
+    }
+    .regmap-item {
+      background: #161b22;
+      border: 1px solid #1f4068;
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-size: 0.8rem;
+      color: #58a6ff;
+    }
+    .regmap-item span { color: #8b949e; margin-left: 6px; }
+
+    /* ── Device Sections ── */
+    .device-section {
+      padding: 22px 32px 4px;
+    }
+    .device-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .device-header h2 {
+      font-size: 1.05rem;
+      color: #e6edf3;
+      font-weight: 600;
+    }
+    .slave-badge {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #8b949e;
+      font-size: 0.72rem;
+      padding: 2px 10px;
+      border-radius: 20px;
+      letter-spacing: 0.5px;
+    }
+
     /* ── Live Reading Cards ── */
     .grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 20px;
-      padding: 28px 32px;
+      gap: 16px;
+      padding-bottom: 8px;
     }
     .card {
       background: #161b22;
       border: 1px solid #30363d;
       border-radius: 10px;
-      padding: 24px;
+      padding: 20px;
       text-align: center;
       transition: border-color 0.3s;
     }
     .card.alarm  { border-color: #f85149; }
     .card .label {
-      font-size: 0.78rem;
+      font-size: 0.75rem;
       color: #8b949e;
       text-transform: uppercase;
       letter-spacing: 1px;
     }
     .card .value {
-      font-size: 2.8rem;
+      font-size: 2.4rem;
       font-weight: 700;
-      margin: 10px 0 4px;
+      margin: 8px 0 4px;
     }
-    .card .unit  { font-size: 0.9rem; color: #8b949e; }
+    .card .unit  { font-size: 0.85rem; color: #8b949e; }
 
-    /* Register badge under each card */
     .card .reg-badge {
       display: inline-block;
-      margin-top: 10px;
+      margin-top: 8px;
       padding: 2px 10px;
       border-radius: 20px;
-      font-size: 0.72rem;
+      font-size: 0.7rem;
       font-weight: 600;
       letter-spacing: 0.5px;
       background: #1f2d3d;
@@ -77,8 +118,8 @@
     .value.alarm { color: #f85149; }
 
     /* ── Sections ── */
-    section { padding: 0 32px 28px; }
-    section h2 {
+    section.table-section { padding: 8px 32px 28px; }
+    section.table-section h2 {
       margin-bottom: 14px;
       font-size: 0.85rem;
       color: #8b949e;
@@ -87,12 +128,22 @@
     }
 
     /* ── Tables ── */
-    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
-    th, td { padding: 10px 14px; border-bottom: 1px solid #21262d; text-align: left; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid #21262d; text-align: left; }
     th { color: #8b949e; font-weight: 600; }
     tr:hover td { background: #1c2128; }
 
-    /* Register pill inside table */
+    .device-pill {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 12px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      background: #21262d;
+      color: #e6edf3;
+      border: 1px solid #30363d;
+    }
+
     .reg-pill {
       display: inline-block;
       padding: 1px 8px;
@@ -125,23 +176,6 @@
       font-size: 0.78rem;
     }
     .ack-btn:hover { background: #21262d; color: #e6edf3; }
-
-    /* ── Register Map Reference ── */
-    .regmap {
-      display: flex;
-      gap: 12px;
-      padding: 0 32px 28px;
-      flex-wrap: wrap;
-    }
-    .regmap-item {
-      background: #161b22;
-      border: 1px solid #1f4068;
-      border-radius: 8px;
-      padding: 10px 18px;
-      font-size: 0.8rem;
-      color: #58a6ff;
-    }
-    .regmap-item span { color: #8b949e; margin-left: 6px; }
   </style>
 </head>
 <body>
@@ -160,35 +194,98 @@
   <div class="regmap-item">40003 <span>→ Temperature (°C)</span></div>
 </div>
 
-<!-- Live Reading Cards -->
-<div class="grid">
-  <div class="card" id="card-voltage">
-    <div class="label">Voltage</div>
-    <div class="value ok" id="val-voltage">--</div>
-    <div class="unit">Volts</div>
-    <div class="reg-badge" id="reg-voltage">40001</div>
+<!-- ───────────── Device 1 — Feeder A ───────────── -->
+<div class="device-section">
+  <div class="device-header">
+    <h2>Feeder A</h2>
+    <span class="slave-badge">Slave ID: 1</span>
   </div>
-  <div class="card" id="card-current">
-    <div class="label">Current</div>
-    <div class="value ok" id="val-current">--</div>
-    <div class="unit">Amperes</div>
-    <div class="reg-badge" id="reg-current">40002</div>
+  <div class="grid">
+    <div class="card" id="card-1-voltage">
+      <div class="label">Voltage</div>
+      <div class="value ok" id="val-1-voltage">--</div>
+      <div class="unit">Volts</div>
+      <div class="reg-badge">40001</div>
+    </div>
+    <div class="card" id="card-1-current">
+      <div class="label">Current</div>
+      <div class="value ok" id="val-1-current">--</div>
+      <div class="unit">Amperes</div>
+      <div class="reg-badge">40002</div>
+    </div>
+    <div class="card" id="card-1-temperature">
+      <div class="label">Temperature</div>
+      <div class="value ok" id="val-1-temperature">--</div>
+      <div class="unit">°C</div>
+      <div class="reg-badge">40003</div>
+    </div>
   </div>
-  <div class="card" id="card-temp">
-    <div class="label">Temperature</div>
-    <div class="value ok" id="val-temp">--</div>
-    <div class="unit">°C</div>
-    <div class="reg-badge" id="reg-temp">40003</div>
+</div>
+
+<!-- ───────────── Device 2 — Transformer T1 ───────────── -->
+<div class="device-section">
+  <div class="device-header">
+    <h2>Transformer T1</h2>
+    <span class="slave-badge">Slave ID: 2</span>
+  </div>
+  <div class="grid">
+    <div class="card" id="card-2-voltage">
+      <div class="label">Voltage</div>
+      <div class="value ok" id="val-2-voltage">--</div>
+      <div class="unit">Volts</div>
+      <div class="reg-badge">40001</div>
+    </div>
+    <div class="card" id="card-2-current">
+      <div class="label">Current</div>
+      <div class="value ok" id="val-2-current">--</div>
+      <div class="unit">Amperes</div>
+      <div class="reg-badge">40002</div>
+    </div>
+    <div class="card" id="card-2-temperature">
+      <div class="label">Temperature</div>
+      <div class="value ok" id="val-2-temperature">--</div>
+      <div class="unit">°C</div>
+      <div class="reg-badge">40003</div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────── Device 3 — Substation S1 ───────────── -->
+<div class="device-section">
+  <div class="device-header">
+    <h2>Substation S1</h2>
+    <span class="slave-badge">Slave ID: 3</span>
+  </div>
+  <div class="grid">
+    <div class="card" id="card-3-voltage">
+      <div class="label">Voltage</div>
+      <div class="value ok" id="val-3-voltage">--</div>
+      <div class="unit">Volts</div>
+      <div class="reg-badge">40001</div>
+    </div>
+    <div class="card" id="card-3-current">
+      <div class="label">Current</div>
+      <div class="value ok" id="val-3-current">--</div>
+      <div class="unit">Amperes</div>
+      <div class="reg-badge">40002</div>
+    </div>
+    <div class="card" id="card-3-temperature">
+      <div class="label">Temperature</div>
+      <div class="value ok" id="val-3-temperature">--</div>
+      <div class="unit">°C</div>
+      <div class="reg-badge">40003</div>
+    </div>
   </div>
 </div>
 
 <!-- Alarm Table -->
-<section>
+<section class="table-section">
   <h2>⚠ Active Alarms</h2>
   <table>
     <thead>
       <tr>
         <th>Time</th>
+        <th>Device</th>
         <th>Register</th>
         <th>Parameter</th>
         <th>Value</th>
@@ -198,18 +295,19 @@
       </tr>
     </thead>
     <tbody id="alarm-body">
-      <tr><td colspan="7" style="color:#8b949e">No alarms</td></tr>
+      <tr><td colspan="8" style="color:#8b949e">No alarms</td></tr>
     </tbody>
   </table>
 </section>
 
 <!-- History Table -->
-<section>
+<section class="table-section">
   <h2>📋 Recent Readings</h2>
   <table>
     <thead>
       <tr>
         <th>Timestamp</th>
+        <th>Device</th>
         <th>Register</th>
         <th>Parameter</th>
         <th>Value</th>
@@ -226,29 +324,33 @@
     temperature: { min: 0,   max: 90  }
   };
 
-  // ── Fetch latest readings ──
+  const PARAMETERS = ["voltage", "current", "temperature"];
+
+  // ── Fetch latest readings for all devices ──
   async function fetchLatest() {
     const data = await fetch("/api/latest").then(r => r.json());
-
-    const fields = [
-      { key: "voltage",     valId: "val-voltage", cardId: "card-voltage", regId: "reg-voltage" },
-      { key: "current",     valId: "val-current", cardId: "card-current", regId: "reg-current" },
-      { key: "temperature", valId: "val-temp",    cardId: "card-temp",    regId: "reg-temp"    },
-    ];
-
     let lastTs = "";
 
-    fields.forEach(({ key, valId, cardId, regId }) => {
-      if (!data[key]) return;
-      const { value, register, timestamp } = data[key];
-      const inAlarm = value > THRESHOLDS[key].max || value < THRESHOLDS[key].min;
+    // data is keyed by device_id: "1", "2", "3"
+    Object.keys(data).forEach(devId => {
+      const devData = data[devId];
 
-      document.getElementById(valId).textContent  = value.toFixed(1);
-      document.getElementById(valId).className    = "value " + (inAlarm ? "alarm" : "ok");
-      document.getElementById(cardId).className   = "card "  + (inAlarm ? "alarm" : "");
-      document.getElementById(regId).textContent  = register;
+      PARAMETERS.forEach(param => {
+        const info = devData[param];
+        if (!info) return;
 
-      if (timestamp > lastTs) lastTs = timestamp;
+        const valEl  = document.getElementById(`val-${devId}-${param}`);
+        const cardEl = document.getElementById(`card-${devId}-${param}`);
+        if (!valEl || !cardEl) return;
+
+        const inAlarm = info.value > THRESHOLDS[param].max || info.value < THRESHOLDS[param].min;
+
+        valEl.textContent = info.value.toFixed(1);
+        valEl.className   = "value " + (inAlarm ? "alarm" : "ok");
+        cardEl.className  = "card "  + (inAlarm ? "alarm" : "");
+
+        if (info.timestamp > lastTs) lastTs = info.timestamp;
+      });
     });
 
     if (lastTs) {
@@ -256,19 +358,20 @@
     }
   }
 
-  // ── Fetch alarms ──
+  // ── Fetch alarms (all devices) ──
   async function fetchAlarms() {
     const alarms = await fetch("/api/alarms").then(r => r.json());
     const tbody  = document.getElementById("alarm-body");
 
     if (!alarms.length) {
-      tbody.innerHTML = `<tr><td colspan="7" style="color:#8b949e">No alarms</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" style="color:#8b949e">No alarms</td></tr>`;
       return;
     }
 
     tbody.innerHTML = alarms.map(a => `
       <tr>
         <td>${a.timestamp}</td>
+        <td><span class="device-pill">${a.device_name}</span></td>
         <td><span class="reg-pill">${a.register || "—"}</span></td>
         <td>${a.parameter.toUpperCase()}</td>
         <td>${a.value}</td>
@@ -286,7 +389,7 @@
       </tr>`).join("");
   }
 
-  // ── Fetch history ──
+  // ── Fetch history (all devices) ──
   async function fetchHistory() {
     const rows  = await fetch("/api/history").then(r => r.json());
     const tbody = document.getElementById("history-body");
@@ -294,6 +397,7 @@
     tbody.innerHTML = rows.map(r => `
       <tr>
         <td>${r.timestamp}</td>
+        <td><span class="device-pill">${r.device_name}</span></td>
         <td><span class="reg-pill">${r.register}</span></td>
         <td>${r.parameter.toUpperCase()}</td>
         <td>${r.value}</td>

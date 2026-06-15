@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
 """
-modbus_client.py — Data Collector + Alarm Engine
+modbus_client.py — Multi-Device Data Collector + Alarm Engine
 
-Polls the Modbus TCP server using the correct register addresses:
+Polls all 3 simulated devices (by Slave ID) using the same register map:
     40001 (address 1) → Voltage
     40002 (address 2) → Current
     40003 (address 3) → Temperature
 
-Stores readings to SQLite and raises alarms when thresholds are breached.
+Devices:
+    Slave ID 1 → Feeder A
+    Slave ID 2 → Transformer T1
+    Slave ID 3 → Substation S1
+
+Stores readings to SQLite (tagged with device_id/device_name) and
+raises alarms when thresholds are breached, per device.
 """
 
 import time
@@ -20,7 +26,7 @@ from pymodbus.client import ModbusTcpClient
 # ─────────────────────────────────────────────
 HOST          = "127.0.0.1"
 PORT          = 5020
-POLL_INTERVAL = 3        # seconds between each poll
+POLL_INTERVAL = 3
 DB_PATH       = "scada.db"
 
 # ─────────────────────────────────────────────
@@ -31,7 +37,16 @@ REG_CURRENT     = 2     # 40002
 REG_TEMPERATURE = 3     # 40003
 
 # ─────────────────────────────────────────────
-# Alarm thresholds
+# Devices — must match modbus_server.py
+# ─────────────────────────────────────────────
+DEVICES = {
+    1: "Feeder A",
+    2: "Transformer T1",
+    3: "Substation S1",
+}
+
+# ─────────────────────────────────────────────
+# Alarm thresholds — applied to every device
 # ─────────────────────────────────────────────
 THRESHOLDS = {
     "voltage":     {"min": 210.0, "max": 245.0},
@@ -51,6 +66,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS readings (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp   TEXT,
+            device_id   INTEGER,
+            device_name TEXT,
             register    TEXT,
             address     INTEGER,
             parameter   TEXT,
@@ -62,6 +79,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS alarms (
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp    TEXT,
+            device_id    INTEGER,
+            device_name  TEXT,
             parameter    TEXT,
             register     TEXT,
             value        REAL,
@@ -75,42 +94,44 @@ def init_db():
     print("[DB] Database initialised: scada.db")
 
 
-def save_reading(ts, parameter, address, value):
-    """Save a single register reading to the DB."""
-    register = f"4{str(address).zfill(4)}"   # e.g. address 1 → "40001"
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute(
-        "INSERT INTO readings (timestamp, register, address, parameter, value) VALUES (?,?,?,?,?)",
-        (ts, register, address, parameter, value)
-    )
-    conn.commit()
-    conn.close()
-
-
-def save_alarm(ts, parameter, address, value, message):
-    """Save an alarm event to the DB."""
+def save_reading(ts, device_id, device_name, parameter, address, value):
     register = f"4{str(address).zfill(4)}"
     conn = sqlite3.connect(DB_PATH)
     conn.execute(
-        "INSERT INTO alarms (timestamp, parameter, register, value, message) VALUES (?,?,?,?,?)",
-        (ts, parameter, register, value, message)
+        """INSERT INTO readings
+           (timestamp, device_id, device_name, register, address, parameter, value)
+           VALUES (?,?,?,?,?,?,?)""",
+        (ts, device_id, device_name, register, address, parameter, value)
     )
     conn.commit()
     conn.close()
-    print(f"  [ALARM] {message}")
 
 
-def check_alarms(ts, parameter, address, value):
+def save_alarm(ts, device_id, device_name, parameter, address, value, message):
+    register = f"4{str(address).zfill(4)}"
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        """INSERT INTO alarms
+           (timestamp, device_id, device_name, parameter, register, value, message)
+           VALUES (?,?,?,?,?,?,?)""",
+        (ts, device_id, device_name, parameter, register, value, message)
+    )
+    conn.commit()
+    conn.close()
+    print(f"  [ALARM][{device_name}] {message}")
+
+
+def check_alarms(ts, device_id, device_name, parameter, address, value):
     """Check if a reading breaches its threshold and raise alarm if so."""
     lo = THRESHOLDS[parameter]["min"]
     hi = THRESHOLDS[parameter]["max"]
     register = f"4{str(address).zfill(4)}"
 
     if value > hi:
-        save_alarm(ts, parameter, address, value,
+        save_alarm(ts, device_id, device_name, parameter, address, value,
             f"{register} {parameter.upper()} HIGH: {value} exceeds max {hi}")
     elif value < lo:
-        save_alarm(ts, parameter, address, value,
+        save_alarm(ts, device_id, device_name, parameter, address, value,
             f"{register} {parameter.upper()} LOW: {value} below min {lo}")
 
 
@@ -124,47 +145,49 @@ def main():
     print(f"[CLIENT] Connecting to Modbus server at {HOST}:{PORT} ...")
     client.connect()
     print("[CLIENT] Connected.")
-    print("[CLIENT] Polling registers:")
-    print("[CLIENT]   40001 → Voltage")
-    print("[CLIENT]   40002 → Current")
-    print("[CLIENT]   40003 → Temperature")
+    print("[CLIENT] Devices to poll:")
+    for slave_id, name in DEVICES.items():
+        print(f"[CLIENT]   Slave {slave_id} -> {name}")
     print()
+
+    registers = [
+        (REG_VOLTAGE,     "voltage"),
+        (REG_CURRENT,     "current"),
+        (REG_TEMPERATURE, "temperature"),
+    ]
 
     try:
         while True:
             ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-            # Read each register individually by its named address
-            readings = [
-                (REG_VOLTAGE,     "voltage"),
-                (REG_CURRENT,     "current"),
-                (REG_TEMPERATURE, "temperature"),
-            ]
+            # Poll each device in turn, using its Slave ID
+            for slave_id, device_name in DEVICES.items():
+                results = {}
+                all_ok = True
 
-            results = {}
-            all_ok = True
+                for address, parameter in registers:
+                    result = client.read_holding_registers(
+                        address, count=1, slave=slave_id
+                    )
+                    if not result.isError():
+                        value = result.registers[0] / 10.0
+                        results[parameter] = value
+                        save_reading(ts, slave_id, device_name, parameter, address, value)
+                        check_alarms(ts, slave_id, device_name, parameter, address, value)
+                    else:
+                        print(
+                            f"  [ERROR] Slave {slave_id} ({device_name}): "
+                            f"failed to read register 4{str(address).zfill(4)}"
+                        )
+                        all_ok = False
 
-            for address, parameter in readings:
-                result = client.read_holding_registers(address, count=1)
-                if not result.isError():
-                    value = result.registers[0] / 10.0
-                    results[parameter] = (address, value)
-                    save_reading(ts, parameter, address, value)
-                    check_alarms(ts, parameter, address, value)
-                else:
-                    print(f"  [ERROR] Failed to read register 4{str(address).zfill(4)}")
-                    all_ok = False
-
-            if all_ok:
-                v = results["voltage"][1]
-                i = results["current"][1]
-                t = results["temperature"][1]
-                print(
-                    f"[{ts}] "
-                    f"40001=Voltage:{v}V  "
-                    f"40002=Current:{i}A  "
-                    f"40003=Temp:{t}C"
-                )
+                if all_ok:
+                    print(
+                        f"[{ts}] [Slave {slave_id}: {device_name}] "
+                        f"40001=V:{results['voltage']}V  "
+                        f"40002=I:{results['current']}A  "
+                        f"40003=T:{results['temperature']}C"
+                    )
 
             time.sleep(POLL_INTERVAL)
 
