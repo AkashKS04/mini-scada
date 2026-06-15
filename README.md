@@ -140,7 +140,7 @@ http://localhost:8080
 - [x] systemd service files for auto-start on boot (`modbus-server.service`, `modbus-client.service`, `dashboard.service`)
 
 ### Phase 2 — Make it SCADA-Like
-- [ ] Multi-device simulation (Feeder A, Transformer T1, Substation S1)
+- [x] Multi-device simulation (Feeder A, Transformer T1, Substation S1)
 - [ ] Smart alarm engine — full lifecycle (ACTIVE → ACKNOWLEDGED → CLEARED)
 - [ ] Alarm priority levels (Low / Medium / High)
 - [ ] Historian with trend graphs (Chart.js — last 1 hour / 24 hours)
