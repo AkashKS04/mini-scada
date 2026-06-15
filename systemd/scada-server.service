@@ -1,0 +1,32 @@
+[Unit]
+Description=SCADA Modbus TCP Server (RTU Simulator)
+Documentation=https://github.com/AkashKS04/mini-scada
+# Start only after network is available
+After=network.target
+
+[Service]
+# Where your project lives
+WorkingDirectory=/home/akash/mini-scada
+
+# What to run
+ExecStart=/usr/bin/python3 /home/akash/mini-scada/modbus_server.py
+
+# Restart automatically if it crashes
+Restart=always
+
+# Wait 5 seconds before restarting (avoid rapid restart loop)
+RestartSec=5
+
+# Run as your user, never as root
+User=akash
+
+# Log stdout and stderr to journald
+StandardOutput=journal
+StandardError=journal
+
+# Give it a unique syslog identifier (for journalctl filtering)
+SyslogIdentifier=scada-server
+
+[Install]
+# Start on normal multi-user boot
+WantedBy=multi-user.target
