@@ -137,7 +137,7 @@ http://localhost:8080
 
 ### Phase 1 — Fix the Foundation
 - [x] Proper Modbus register mapping (40001 → Voltage, 40002 → Current, 40003 → Temperature)
-- [ ] systemd service files for auto-start on boot (`modbus-server.service`, `modbus-client.service`, `dashboard.service`)
+- [x] systemd service files for auto-start on boot (`modbus-server.service`, `modbus-client.service`, `dashboard.service`)
 
 ### Phase 2 — Make it SCADA-Like
 - [ ] Multi-device simulation (Feeder A, Transformer T1, Substation S1)
