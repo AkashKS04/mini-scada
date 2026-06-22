@@ -21,161 +21,106 @@
       width: 10px; height: 10px; border-radius: 50%;
       background: #3fb950; animation: pulse 2s infinite;
     }
-    @keyframes pulse {
-      0%,100% { opacity: 1; } 50% { opacity: 0.4; }
-    }
-    #lastUpdate {
-      margin-left: auto;
-      font-size: 0.8rem;
-      color: #8b949e;
-    }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+    #lastUpdate { margin-left: auto; font-size: 0.8rem; color: #8b949e; }
 
-    /* ── Register Map Reference Bar ── */
+    /* ── Register Map Bar ── */
     .regmap {
-      display: flex;
-      gap: 12px;
-      padding: 16px 32px 0;
-      flex-wrap: wrap;
+      display: flex; gap: 12px; padding: 16px 32px 0; flex-wrap: wrap;
     }
     .regmap-item {
-      background: #161b22;
-      border: 1px solid #1f4068;
-      border-radius: 8px;
-      padding: 10px 18px;
-      font-size: 0.8rem;
-      color: #58a6ff;
+      background: #161b22; border: 1px solid #1f4068;
+      border-radius: 8px; padding: 10px 18px;
+      font-size: 0.8rem; color: #58a6ff;
     }
     .regmap-item span { color: #8b949e; margin-left: 6px; }
 
     /* ── Device Sections ── */
-    .device-section {
-      padding: 22px 32px 4px;
-    }
+    .device-section { padding: 22px 32px 4px; }
     .device-header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 14px;
+      display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
     }
-    .device-header h2 {
-      font-size: 1.05rem;
-      color: #e6edf3;
-      font-weight: 600;
-    }
+    .device-header h2 { font-size: 1.05rem; color: #e6edf3; font-weight: 600; }
     .slave-badge {
-      background: #21262d;
-      border: 1px solid #30363d;
-      color: #8b949e;
-      font-size: 0.72rem;
-      padding: 2px 10px;
-      border-radius: 20px;
-      letter-spacing: 0.5px;
+      background: #21262d; border: 1px solid #30363d;
+      color: #8b949e; font-size: 0.72rem;
+      padding: 2px 10px; border-radius: 20px; letter-spacing: 0.5px;
     }
 
-    /* ── Live Reading Cards ── */
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-      padding-bottom: 8px;
-    }
+    /* ── Cards ── */
+    .grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; padding-bottom: 8px; }
     .card {
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 10px;
-      padding: 20px;
-      text-align: center;
-      transition: border-color 0.3s;
+      background: #161b22; border: 1px solid #30363d;
+      border-radius: 10px; padding: 20px; text-align: center; transition: border-color 0.3s;
     }
     .card.alarm  { border-color: #f85149; }
-    .card .label {
-      font-size: 0.75rem;
-      color: #8b949e;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-    .card .value {
-      font-size: 2.4rem;
-      font-weight: 700;
-      margin: 8px 0 4px;
-    }
+    .card .label { font-size: 0.75rem; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; }
+    .card .value { font-size: 2.4rem; font-weight: 700; margin: 8px 0 4px; }
     .card .unit  { font-size: 0.85rem; color: #8b949e; }
-
     .card .reg-badge {
-      display: inline-block;
-      margin-top: 8px;
-      padding: 2px 10px;
-      border-radius: 20px;
-      font-size: 0.7rem;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      background: #1f2d3d;
-      color: #58a6ff;
-      border: 1px solid #1f4068;
+      display: inline-block; margin-top: 8px; padding: 2px 10px;
+      border-radius: 20px; font-size: 0.7rem; font-weight: 600;
+      background: #1f2d3d; color: #58a6ff; border: 1px solid #1f4068;
     }
-
     .value.ok    { color: #3fb950; }
     .value.alarm { color: #f85149; }
 
-    /* ── Sections ── */
+    /* ── Tables ── */
     section.table-section { padding: 8px 32px 28px; }
     section.table-section h2 {
-      margin-bottom: 14px;
-      font-size: 0.85rem;
-      color: #8b949e;
-      text-transform: uppercase;
-      letter-spacing: 1px;
+      margin-bottom: 14px; font-size: 0.85rem;
+      color: #8b949e; text-transform: uppercase; letter-spacing: 1px;
     }
-
-    /* ── Tables ── */
     table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
     th, td { padding: 10px 12px; border-bottom: 1px solid #21262d; text-align: left; }
     th { color: #8b949e; font-weight: 600; }
     tr:hover td { background: #1c2128; }
 
+    /* ── Pills ── */
     .device-pill {
-      display: inline-block;
-      padding: 1px 8px;
-      border-radius: 12px;
-      font-size: 0.72rem;
-      font-weight: 600;
-      background: #21262d;
-      color: #e6edf3;
-      border: 1px solid #30363d;
+      display: inline-block; padding: 1px 8px; border-radius: 12px;
+      font-size: 0.72rem; font-weight: 600;
+      background: #21262d; color: #e6edf3; border: 1px solid #30363d;
     }
-
     .reg-pill {
-      display: inline-block;
-      padding: 1px 8px;
-      border-radius: 12px;
-      font-size: 0.72rem;
-      font-weight: 600;
-      background: #1f2d3d;
-      color: #58a6ff;
-      border: 1px solid #1f4068;
-      margin-left: 6px;
+      display: inline-block; padding: 1px 8px; border-radius: 12px;
+      font-size: 0.72rem; font-weight: 600;
+      background: #1f2d3d; color: #58a6ff; border: 1px solid #1f4068; margin-left: 4px;
     }
 
-    /* Alarm status badges */
+    /* ── Alarm Status Badges ── */
     .badge {
-      padding: 2px 10px;
-      border-radius: 20px;
-      font-size: 0.75rem;
-      font-weight: 600;
+      padding: 2px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600;
     }
-    .badge.active { background: #3d1f1f; color: #f85149; }
-    .badge.ack    { background: #1f2d1f; color: #3fb950; }
+    .badge.active  { background: #3d1f1f; color: #f85149; }
+    .badge.ack     { background: #3d2e0a; color: #e3b341; }
+    .badge.cleared { background: #1f2d1f; color: #3fb950; }
 
+    /* ── Priority Badges ── */
+    .priority {
+      padding: 2px 8px; border-radius: 12px; font-size: 0.72rem; font-weight: 700;
+    }
+    .priority.HIGH   { background: #3d1f1f; color: #f85149; }
+    .priority.MEDIUM { background: #3d2e0a; color: #e3b341; }
+    .priority.LOW    { background: #1f2d3d; color: #58a6ff; }
+
+    /* ── Ack Button ── */
     .ack-btn {
-      padding: 4px 12px;
-      border: 1px solid #30363d;
-      border-radius: 6px;
-      background: transparent;
-      color: #8b949e;
-      cursor: pointer;
-      font-size: 0.78rem;
+      padding: 4px 12px; border: 1px solid #30363d; border-radius: 6px;
+      background: transparent; color: #8b949e; cursor: pointer; font-size: 0.78rem;
     }
     .ack-btn:hover { background: #21262d; color: #e6edf3; }
+
+    /* ── Alarm count summary ── */
+    .alarm-summary {
+      display: flex; gap: 12px; padding: 0 32px 16px; flex-wrap: wrap;
+    }
+    .summary-chip {
+      padding: 6px 16px; border-radius: 8px; font-size: 0.8rem; font-weight: 600;
+    }
+    .summary-chip.active  { background: #3d1f1f; color: #f85149; border: 1px solid #f85149; }
+    .summary-chip.ack     { background: #3d2e0a; color: #e3b341; border: 1px solid #e3b341; }
+    .summary-chip.cleared { background: #1f2d1f; color: #3fb950; border: 1px solid #3fb950; }
   </style>
 </head>
 <body>
@@ -187,14 +132,14 @@
   <span id="lastUpdate"></span>
 </header>
 
-<!-- Register Map Reference Bar -->
+<!-- Register Map Bar -->
 <div class="regmap">
   <div class="regmap-item">40001 <span>→ Voltage (V)</span></div>
   <div class="regmap-item">40002 <span>→ Current (A)</span></div>
   <div class="regmap-item">40003 <span>→ Temperature (°C)</span></div>
 </div>
 
-<!-- ───────────── Device 1 — Feeder A ───────────── -->
+<!-- ── Device 1: Feeder A ── -->
 <div class="device-section">
   <div class="device-header">
     <h2>Feeder A</h2>
@@ -222,7 +167,7 @@
   </div>
 </div>
 
-<!-- ───────────── Device 2 — Transformer T1 ───────────── -->
+<!-- ── Device 2: Transformer T1 ── -->
 <div class="device-section">
   <div class="device-header">
     <h2>Transformer T1</h2>
@@ -250,7 +195,7 @@
   </div>
 </div>
 
-<!-- ───────────── Device 3 — Substation S1 ───────────── -->
+<!-- ── Device 3: Substation S1 ── -->
 <div class="device-section">
   <div class="device-header">
     <h2>Substation S1</h2>
@@ -278,9 +223,16 @@
   </div>
 </div>
 
-<!-- Alarm Table -->
+<!-- Alarm summary chips -->
+<div class="alarm-summary">
+  <div class="summary-chip active"  id="count-active">ACTIVE: 0</div>
+  <div class="summary-chip ack"     id="count-ack">ACKNOWLEDGED: 0</div>
+  <div class="summary-chip cleared" id="count-cleared">CLEARED: 0</div>
+</div>
+
+<!-- Active + Acknowledged Alarms -->
 <section class="table-section">
-  <h2>⚠ Active Alarms</h2>
+  <h2>⚠ Active &amp; Acknowledged Alarms</h2>
   <table>
     <thead>
       <tr>
@@ -289,20 +241,42 @@
         <th>Register</th>
         <th>Parameter</th>
         <th>Value</th>
+        <th>Priority</th>
         <th>Message</th>
         <th>Status</th>
         <th>Action</th>
       </tr>
     </thead>
     <tbody id="alarm-body">
-      <tr><td colspan="8" style="color:#8b949e">No alarms</td></tr>
+      <tr><td colspan="9" style="color:#8b949e">No active alarms</td></tr>
     </tbody>
   </table>
 </section>
 
-<!-- History Table -->
+<!-- Alarm History (CLEARED) -->
 <section class="table-section">
-  <h2>📋 Recent Readings</h2>
+  <h2>📋 Alarm History (Cleared)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Raised At</th>
+        <th>Cleared At</th>
+        <th>Device</th>
+        <th>Register</th>
+        <th>Parameter</th>
+        <th>Priority</th>
+        <th>Message</th>
+      </tr>
+    </thead>
+    <tbody id="alarm-history-body">
+      <tr><td colspan="7" style="color:#8b949e">No cleared alarms yet</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- Recent Readings -->
+<section class="table-section">
+  <h2>📡 Recent Readings</h2>
   <table>
     <thead>
       <tr>
@@ -323,18 +297,15 @@
     current:     { min: 5,   max: 25  },
     temperature: { min: 0,   max: 90  }
   };
-
   const PARAMETERS = ["voltage", "current", "temperature"];
 
-  // ── Fetch latest readings for all devices ──
+  // ── Latest readings ──
   async function fetchLatest() {
     const data = await fetch("/api/latest").then(r => r.json());
     let lastTs = "";
 
-    // data is keyed by device_id: "1", "2", "3"
     Object.keys(data).forEach(devId => {
       const devData = data[devId];
-
       PARAMETERS.forEach(param => {
         const info = devData[param];
         if (!info) return;
@@ -344,7 +315,6 @@
         if (!valEl || !cardEl) return;
 
         const inAlarm = info.value > THRESHOLDS[param].max || info.value < THRESHOLDS[param].min;
-
         valEl.textContent = info.value.toFixed(1);
         valEl.className   = "value " + (inAlarm ? "alarm" : "ok");
         cardEl.className  = "card "  + (inAlarm ? "alarm" : "");
@@ -358,13 +328,18 @@
     }
   }
 
-  // ── Fetch alarms (all devices) ──
+  // ── Active + Acknowledged alarms ──
   async function fetchAlarms() {
     const alarms = await fetch("/api/alarms").then(r => r.json());
     const tbody  = document.getElementById("alarm-body");
 
+    const activeCount = alarms.filter(a => a.status === 'ACTIVE').length;
+    const ackCount    = alarms.filter(a => a.status === 'ACKNOWLEDGED').length;
+    document.getElementById("count-active").textContent = `ACTIVE: ${activeCount}`;
+    document.getElementById("count-ack").textContent    = `ACKNOWLEDGED: ${ackCount}`;
+
     if (!alarms.length) {
-      tbody.innerHTML = `<tr><td colspan="8" style="color:#8b949e">No alarms</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" style="color:#8b949e">No active alarms ✓</td></tr>`;
       return;
     }
 
@@ -375,25 +350,47 @@
         <td><span class="reg-pill">${a.register || "—"}</span></td>
         <td>${a.parameter.toUpperCase()}</td>
         <td>${a.value}</td>
+        <td><span class="priority ${a.priority}">${a.priority}</span></td>
         <td>${a.message}</td>
+        <td><span class="badge ${a.status === 'ACTIVE' ? 'active' : 'ack'}">
+          ${a.status}
+        </span></td>
         <td>
-          <span class="badge ${a.acknowledged ? 'ack' : 'active'}">
-            ${a.acknowledged ? 'ACK' : 'ACTIVE'}
-          </span>
-        </td>
-        <td>
-          ${!a.acknowledged
+          ${a.status === 'ACTIVE'
             ? `<button class="ack-btn" onclick="ackAlarm(${a.id})">Acknowledge</button>`
             : '—'}
         </td>
       </tr>`).join("");
   }
 
-  // ── Fetch history (all devices) ──
+  // ── Alarm history (cleared) ──
+  async function fetchAlarmHistory() {
+    const alarms = await fetch("/api/alarms/history").then(r => r.json());
+    const tbody  = document.getElementById("alarm-history-body");
+
+    document.getElementById("count-cleared").textContent = `CLEARED: ${alarms.length}`;
+
+    if (!alarms.length) {
+      tbody.innerHTML = `<tr><td colspan="7" style="color:#8b949e">No cleared alarms yet</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = alarms.map(a => `
+      <tr>
+        <td>${a.timestamp}</td>
+        <td>${a.cleared_timestamp || "—"}</td>
+        <td><span class="device-pill">${a.device_name}</span></td>
+        <td><span class="reg-pill">${a.register || "—"}</span></td>
+        <td>${a.parameter.toUpperCase()}</td>
+        <td><span class="priority ${a.priority}">${a.priority}</span></td>
+        <td>${a.message}</td>
+      </tr>`).join("");
+  }
+
+  // ── Recent readings ──
   async function fetchHistory() {
     const rows  = await fetch("/api/history").then(r => r.json());
     const tbody = document.getElementById("history-body");
-
     tbody.innerHTML = rows.map(r => `
       <tr>
         <td>${r.timestamp}</td>
@@ -404,7 +401,7 @@
       </tr>`).join("");
   }
 
-  // ── Acknowledge alarm ──
+  // ── Acknowledge ──
   async function ackAlarm(id) {
     await fetch(`/api/acknowledge/${id}`, { method: "POST" });
     fetchAlarms();
@@ -414,6 +411,7 @@
   function refresh() {
     fetchLatest();
     fetchAlarms();
+    fetchAlarmHistory();
     fetchHistory();
   }
 

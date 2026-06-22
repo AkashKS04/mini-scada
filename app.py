@@ -1,28 +1,27 @@
 #!/usr/bin/env python3
 """
-app.py — Flask Web Dashboard + REST API (Multi-Device)
-
-Serves the SCADA HMI dashboard and exposes API endpoints
-that return data grouped by device.
+app.py — Flask Web Dashboard + REST API (Smart Alarm Engine)
 
 Endpoints:
-    GET  /                        → dashboard UI
-    GET  /api/devices             → list of devices
-    GET  /api/latest              → latest reading per device, per parameter
-    GET  /api/history             → last 50 readings (all devices)
-    GET  /api/alarms              → last 20 alarms (all devices)
-    POST /api/acknowledge/<id>    → acknowledge an alarm
-    GET  /api/register_map        → register map reference
+    GET  /                            → dashboard UI
+    GET  /api/devices                 → list of devices
+    GET  /api/latest                  → latest reading per device per parameter
+    GET  /api/history                 → last 50 readings (all devices)
+    GET  /api/alarms                  → ACTIVE + ACKNOWLEDGED alarms
+    GET  /api/alarms/history          → CLEARED alarms (alarm history)
+    POST /api/acknowledge/<id>        → acknowledge an alarm (ACTIVE → ACKNOWLEDGED)
+    GET  /api/register_map            → register map reference
 """
 
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify
 import sqlite3
+from datetime import datetime
 
 app = Flask(__name__)
 DB_PATH = "scada.db"
 
 # ─────────────────────────────────────────────
-# Devices — must match modbus_server.py / modbus_client.py
+# Devices + Register Map
 # ─────────────────────────────────────────────
 DEVICES = {
     1: "Feeder A",
@@ -32,9 +31,6 @@ DEVICES = {
 
 PARAMETERS = ["voltage", "current", "temperature"]
 
-# ─────────────────────────────────────────────
-# Register Map — for API responses
-# ─────────────────────────────────────────────
 REGISTER_MAP = {
     "voltage":     "40001",
     "current":     "40002",
@@ -61,7 +57,6 @@ def index():
 
 @app.route("/api/devices")
 def api_devices():
-    """Returns the list of known devices."""
     return jsonify([
         {"device_id": dev_id, "device_name": name}
         for dev_id, name in DEVICES.items()
@@ -70,24 +65,7 @@ def api_devices():
 
 @app.route("/api/latest")
 def api_latest():
-    """
-    Returns the latest reading for each (device, parameter) pair.
-
-    Response shape:
-    {
-        "1": {
-            "device_id": 1,
-            "device_name": "Feeder A",
-            "voltage":     {"value": 230.1, "register": "40001", "timestamp": "..."},
-            "current":     {"value": 14.5,  "register": "40002", "timestamp": "..."},
-            "temperature": {"value": 72.3,  "register": "40003", "timestamp": "..."}
-        },
-        "2": { ... },
-        "3": { ... }
-    }
-    """
-    # Fetch enough recent rows to cover the latest value
-    # for every (device, parameter) combination
+    """Latest reading per device per parameter."""
     limit = len(DEVICES) * len(PARAMETERS) * 5
     rows = query_db(
         """SELECT device_id, device_name, parameter, value, register, timestamp
@@ -126,7 +104,7 @@ def api_latest():
 
 @app.route("/api/history")
 def api_history():
-    """Returns last 50 readings across all devices."""
+    """Last 50 readings across all devices."""
     rows = query_db(
         "SELECT * FROM readings ORDER BY id DESC LIMIT 50"
     )
@@ -135,28 +113,62 @@ def api_history():
 
 @app.route("/api/alarms")
 def api_alarms():
-    """Returns last 20 alarms across all devices."""
+    """
+    Returns ACTIVE and ACKNOWLEDGED alarms only.
+    These are the alarms needing operator attention.
+    Ordered by priority then timestamp.
+    """
     rows = query_db(
-        "SELECT * FROM alarms ORDER BY id DESC LIMIT 20"
+        """SELECT * FROM alarms
+           WHERE status IN ('ACTIVE', 'ACKNOWLEDGED')
+           ORDER BY
+               CASE priority
+                   WHEN 'HIGH'   THEN 1
+                   WHEN 'MEDIUM' THEN 2
+                   WHEN 'LOW'    THEN 3
+               END,
+               id DESC
+           LIMIT 20"""
+    )
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/alarms/history")
+def api_alarms_history():
+    """
+    Returns CLEARED alarms — the alarm history log.
+    Shows resolved events for post-fault analysis (like SOE in real OMS).
+    """
+    rows = query_db(
+        """SELECT * FROM alarms
+           WHERE status = 'CLEARED'
+           ORDER BY id DESC
+           LIMIT 30"""
     )
     return jsonify([dict(r) for r in rows])
 
 
 @app.route("/api/acknowledge/<int:alarm_id>", methods=["POST"])
 def acknowledge(alarm_id):
-    """Acknowledge an alarm by ID."""
+    """
+    Acknowledges an ACTIVE alarm — moves it to ACKNOWLEDGED.
+    Records the timestamp of acknowledgement.
+    """
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conn = sqlite3.connect(DB_PATH)
     conn.execute(
-        "UPDATE alarms SET acknowledged=1 WHERE id=?", (alarm_id,)
+        """UPDATE alarms
+           SET status='ACKNOWLEDGED', ack_timestamp=?
+           WHERE id=? AND status='ACTIVE'""",
+        (ts, alarm_id)
     )
     conn.commit()
     conn.close()
-    return jsonify({"status": "ok", "alarm_id": alarm_id})
+    return jsonify({"status": "ok", "alarm_id": alarm_id, "ack_timestamp": ts})
 
 
 @app.route("/api/register_map")
 def register_map():
-    """Returns the register map — useful for documentation."""
     return jsonify(REGISTER_MAP)
 
 
