@@ -141,9 +141,9 @@ http://localhost:8080
 
 ### Phase 2 — Make it SCADA-Like
 - [x] Multi-device simulation (Feeder A, Transformer T1, Substation S1)
-- [ ] Smart alarm engine — full lifecycle (ACTIVE → ACKNOWLEDGED → CLEARED)
-- [ ] Alarm priority levels (Low / Medium / High)
-- [ ] Historian with trend graphs (Chart.js — last 1 hour / 24 hours)
+- [x] Smart alarm engine — full lifecycle (ACTIVE → ACKNOWLEDGED → CLEARED)
+- [x] Alarm priority levels (Low / Medium / High)
+- [x] Historian with trend graphs (Chart.js — last 1 hour / 24 hours)
 
 ### Phase 3 — Differentiate
 - [ ] Failure simulation — device offline, data freeze, communication timeout detection
