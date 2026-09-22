@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-app.py — Flask Web Dashboard + REST API (Smart Alarm Engine)
+app.py — Flask Web Dashboard + REST API (with Historian Trends)
 
 Endpoints:
     GET  /                            → dashboard UI
@@ -9,13 +9,15 @@ Endpoints:
     GET  /api/history                 → last 50 readings (all devices)
     GET  /api/alarms                  → ACTIVE + ACKNOWLEDGED alarms
     GET  /api/alarms/history          → CLEARED alarms (alarm history)
-    POST /api/acknowledge/<id>        → acknowledge an alarm (ACTIVE → ACKNOWLEDGED)
+    POST /api/acknowledge/<id>        → acknowledge an alarm
+    GET  /api/trends                  → time-series data for historian charts
+                                        ?device_id=1&hours=1
     GET  /api/register_map            → register map reference
 """
 
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 DB_PATH = "scada.db"
@@ -65,7 +67,6 @@ def api_devices():
 
 @app.route("/api/latest")
 def api_latest():
-    """Latest reading per device per parameter."""
     limit = len(DEVICES) * len(PARAMETERS) * 5
     rows = query_db(
         """SELECT device_id, device_name, parameter, value, register, timestamp
@@ -104,7 +105,6 @@ def api_latest():
 
 @app.route("/api/history")
 def api_history():
-    """Last 50 readings across all devices."""
     rows = query_db(
         "SELECT * FROM readings ORDER BY id DESC LIMIT 50"
     )
@@ -113,11 +113,6 @@ def api_history():
 
 @app.route("/api/alarms")
 def api_alarms():
-    """
-    Returns ACTIVE and ACKNOWLEDGED alarms only.
-    These are the alarms needing operator attention.
-    Ordered by priority then timestamp.
-    """
     rows = query_db(
         """SELECT * FROM alarms
            WHERE status IN ('ACTIVE', 'ACKNOWLEDGED')
@@ -135,10 +130,6 @@ def api_alarms():
 
 @app.route("/api/alarms/history")
 def api_alarms_history():
-    """
-    Returns CLEARED alarms — the alarm history log.
-    Shows resolved events for post-fault analysis (like SOE in real OMS).
-    """
     rows = query_db(
         """SELECT * FROM alarms
            WHERE status = 'CLEARED'
@@ -150,10 +141,6 @@ def api_alarms_history():
 
 @app.route("/api/acknowledge/<int:alarm_id>", methods=["POST"])
 def acknowledge(alarm_id):
-    """
-    Acknowledges an ACTIVE alarm — moves it to ACKNOWLEDGED.
-    Records the timestamp of acknowledgement.
-    """
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conn = sqlite3.connect(DB_PATH)
     conn.execute(
@@ -165,6 +152,119 @@ def acknowledge(alarm_id):
     conn.commit()
     conn.close()
     return jsonify({"status": "ok", "alarm_id": alarm_id, "ack_timestamp": ts})
+
+
+@app.route("/api/trends")
+def api_trends():
+    """
+    Returns time-series historian data for a given device over
+    the last N hours. Used to power the Chart.js trend graphs.
+
+    Query params:
+        device_id : int  (1, 2, or 3)
+        hours     : int  (1 or 24, default 1)
+
+    Response shape:
+    {
+        "device_id": 1,
+        "device_name": "Feeder A",
+        "hours": 1,
+        "labels": ["2026-06-15 10:00:00", ...],   <- timestamps (x-axis)
+        "voltage":     [230.1, 229.8, ...],         <- values (y-axis)
+        "current":     [14.5, 15.2, ...],
+        "temperature": [72.3, 71.9, ...]
+    }
+
+    For 1 hour: returns every reading (sampled ~every 3s, max ~1200 points)
+    For 24 hours: buckets into 1-minute averages to keep response small
+    """
+    device_id = request.args.get("device_id", 1, type=int)
+    hours     = request.args.get("hours", 1, type=int)
+
+    # Clamp hours to valid values
+    if hours not in (1, 24):
+        hours = 1
+
+    device_name = DEVICES.get(device_id, "Unknown")
+    since = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+
+    if hours == 1:
+        # Return raw readings for the last hour
+        rows = query_db(
+            """SELECT timestamp, parameter, value
+               FROM readings
+               WHERE device_id=? AND timestamp >= ?
+               ORDER BY timestamp ASC""",
+            (device_id, since)
+        )
+
+        # Build per-parameter lists aligned by timestamp
+        data = {}
+        labels_set = {}
+
+        for row in rows:
+            ts    = row["timestamp"]
+            param = row["parameter"]
+            val   = row["value"]
+
+            if param not in data:
+                data[param]       = {}
+            data[param][ts] = val
+
+        # Get union of all timestamps
+        all_ts = sorted(set(
+            ts for param_data in data.values() for ts in param_data
+        ))
+
+        result = {
+            "device_id":   device_id,
+            "device_name": device_name,
+            "hours":       hours,
+            "labels":      all_ts,
+            "voltage":     [data.get("voltage",     {}).get(ts) for ts in all_ts],
+            "current":     [data.get("current",     {}).get(ts) for ts in all_ts],
+            "temperature": [data.get("temperature", {}).get(ts) for ts in all_ts],
+        }
+
+    else:
+        # 24 hours: bucket into 1-minute averages to reduce data points
+        rows = query_db(
+            """SELECT
+                   strftime('%Y-%m-%d %H:%M', timestamp) AS minute,
+                   parameter,
+                   ROUND(AVG(value), 1) AS avg_value
+               FROM readings
+               WHERE device_id=? AND timestamp >= ?
+               GROUP BY minute, parameter
+               ORDER BY minute ASC""",
+            (device_id, since)
+        )
+
+        data = {}
+        for row in rows:
+            minute = row["minute"]
+            param  = row["parameter"]
+            val    = row["avg_value"]
+
+            if param not in data:
+                data[param] = {}
+            data[param][minute] = val
+
+        all_ts = sorted(set(
+            ts for param_data in data.values() for ts in param_data
+        ))
+
+        result = {
+            "device_id":   device_id,
+            "device_name": device_name,
+            "hours":       hours,
+            "labels":      all_ts,
+            "voltage":     [data.get("voltage",     {}).get(ts) for ts in all_ts],
+            "current":     [data.get("current",     {}).get(ts) for ts in all_ts],
+            "temperature": [data.get("temperature", {}).get(ts) for ts in all_ts],
+        }
+
+    return jsonify(result)
 
 
 @app.route("/api/register_map")

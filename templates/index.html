@@ -3,26 +3,41 @@
 <head>
   <meta charset="UTF-8">
   <title>Mini SCADA Dashboard</title>
+  <!-- Chart.js from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', sans-serif; background: #0d1117; color: #e6edf3; }
 
     /* ── Header ── */
     header {
-      background: #161b22;
-      border-bottom: 1px solid #30363d;
-      padding: 16px 32px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
+      background: #161b22; border-bottom: 1px solid #30363d;
+      padding: 16px 32px; display: flex; align-items: center; gap: 12px;
     }
     header h1 { font-size: 1.3rem; color: #58a6ff; }
     .status-dot {
       width: 10px; height: 10px; border-radius: 50%;
       background: #3fb950; animation: pulse 2s infinite;
     }
-    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
     #lastUpdate { margin-left: auto; font-size: 0.8rem; color: #8b949e; }
+
+    /* ── Nav Tabs ── */
+    .nav-tabs {
+      display: flex; gap: 0; background: #161b22;
+      border-bottom: 1px solid #30363d; padding: 0 32px;
+    }
+    .nav-tab {
+      padding: 12px 24px; font-size: 0.88rem; cursor: pointer;
+      color: #8b949e; border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    .nav-tab:hover { color: #e6edf3; }
+    .nav-tab.active { color: #58a6ff; border-bottom-color: #58a6ff; }
+
+    /* ── Tab Content ── */
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
 
     /* ── Register Map Bar ── */
     .regmap {
@@ -30,21 +45,18 @@
     }
     .regmap-item {
       background: #161b22; border: 1px solid #1f4068;
-      border-radius: 8px; padding: 10px 18px;
-      font-size: 0.8rem; color: #58a6ff;
+      border-radius: 8px; padding: 10px 18px; font-size: 0.8rem; color: #58a6ff;
     }
     .regmap-item span { color: #8b949e; margin-left: 6px; }
 
     /* ── Device Sections ── */
     .device-section { padding: 22px 32px 4px; }
-    .device-header {
-      display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
-    }
+    .device-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
     .device-header h2 { font-size: 1.05rem; color: #e6edf3; font-weight: 600; }
     .slave-badge {
       background: #21262d; border: 1px solid #30363d;
-      color: #8b949e; font-size: 0.72rem;
-      padding: 2px 10px; border-radius: 20px; letter-spacing: 0.5px;
+      color: #8b949e; font-size: 0.72rem; padding: 2px 10px;
+      border-radius: 20px; letter-spacing: 0.5px;
     }
 
     /* ── Cards ── */
@@ -53,7 +65,7 @@
       background: #161b22; border: 1px solid #30363d;
       border-radius: 10px; padding: 20px; text-align: center; transition: border-color 0.3s;
     }
-    .card.alarm  { border-color: #f85149; }
+    .card.alarm { border-color: #f85149; }
     .card .label { font-size: 0.75rem; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; }
     .card .value { font-size: 2.4rem; font-weight: 700; margin: 8px 0 4px; }
     .card .unit  { font-size: 0.85rem; color: #8b949e; }
@@ -88,18 +100,14 @@
       background: #1f2d3d; color: #58a6ff; border: 1px solid #1f4068; margin-left: 4px;
     }
 
-    /* ── Alarm Status Badges ── */
-    .badge {
-      padding: 2px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600;
-    }
+    /* ── Alarm Badges ── */
+    .badge { padding: 2px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
     .badge.active  { background: #3d1f1f; color: #f85149; }
     .badge.ack     { background: #3d2e0a; color: #e3b341; }
     .badge.cleared { background: #1f2d1f; color: #3fb950; }
 
     /* ── Priority Badges ── */
-    .priority {
-      padding: 2px 8px; border-radius: 12px; font-size: 0.72rem; font-weight: 700;
-    }
+    .priority { padding: 2px 8px; border-radius: 12px; font-size: 0.72rem; font-weight: 700; }
     .priority.HIGH   { background: #3d1f1f; color: #f85149; }
     .priority.MEDIUM { background: #3d2e0a; color: #e3b341; }
     .priority.LOW    { background: #1f2d3d; color: #58a6ff; }
@@ -111,16 +119,52 @@
     }
     .ack-btn:hover { background: #21262d; color: #e6edf3; }
 
-    /* ── Alarm count summary ── */
-    .alarm-summary {
-      display: flex; gap: 12px; padding: 0 32px 16px; flex-wrap: wrap;
-    }
-    .summary-chip {
-      padding: 6px 16px; border-radius: 8px; font-size: 0.8rem; font-weight: 600;
-    }
+    /* ── Alarm Summary ── */
+    .alarm-summary { display: flex; gap: 12px; padding: 0 32px 16px; flex-wrap: wrap; }
+    .summary-chip { padding: 6px 16px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; }
     .summary-chip.active  { background: #3d1f1f; color: #f85149; border: 1px solid #f85149; }
     .summary-chip.ack     { background: #3d2e0a; color: #e3b341; border: 1px solid #e3b341; }
     .summary-chip.cleared { background: #1f2d1f; color: #3fb950; border: 1px solid #3fb950; }
+
+    /* ── Historian / Trends Tab ── */
+    .trends-controls {
+      display: flex; align-items: center; gap: 16px;
+      padding: 24px 32px 16px; flex-wrap: wrap;
+    }
+    .trends-controls label { font-size: 0.85rem; color: #8b949e; }
+    .trends-controls select {
+      background: #161b22; border: 1px solid #30363d; color: #e6edf3;
+      padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; cursor: pointer;
+    }
+    .time-toggle { display: flex; gap: 0; border: 1px solid #30363d; border-radius: 6px; overflow: hidden; }
+    .time-btn {
+      padding: 6px 18px; background: transparent; color: #8b949e;
+      border: none; cursor: pointer; font-size: 0.85rem; transition: all 0.2s;
+    }
+    .time-btn.active { background: #1f4068; color: #58a6ff; }
+    .time-btn:hover:not(.active) { background: #21262d; color: #e6edf3; }
+
+    .chart-grid {
+      display: grid; grid-template-columns: 1fr;
+      gap: 20px; padding: 0 32px 28px;
+    }
+    .chart-card {
+      background: #161b22; border: 1px solid #30363d;
+      border-radius: 10px; padding: 20px;
+    }
+    .chart-card h3 {
+      font-size: 0.85rem; color: #8b949e;
+      text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px;
+    }
+    .chart-card .chart-meta {
+      font-size: 0.75rem; color: #8b949e; margin-bottom: 10px;
+    }
+    canvas { width: 100% !important; }
+
+    .trend-loading {
+      text-align: center; color: #8b949e;
+      font-size: 0.85rem; padding: 40px;
+    }
   </style>
 </head>
 <body>
@@ -132,166 +176,225 @@
   <span id="lastUpdate"></span>
 </header>
 
-<!-- Register Map Bar -->
-<div class="regmap">
-  <div class="regmap-item">40001 <span>→ Voltage (V)</span></div>
-  <div class="regmap-item">40002 <span>→ Current (A)</span></div>
-  <div class="regmap-item">40003 <span>→ Temperature (°C)</span></div>
+<!-- Nav Tabs -->
+<div class="nav-tabs">
+  <div class="nav-tab active" onclick="showTab('live')">📡 Live Data</div>
+  <div class="nav-tab" onclick="showTab('historian')">📈 Historian</div>
+  <div class="nav-tab" onclick="showTab('alarms')">⚠ Alarms</div>
+  <div class="nav-tab" onclick="showTab('readings')">📋 Readings</div>
 </div>
 
-<!-- ── Device 1: Feeder A ── -->
-<div class="device-section">
-  <div class="device-header">
-    <h2>Feeder A</h2>
-    <span class="slave-badge">Slave ID: 1</span>
-  </div>
-  <div class="grid">
-    <div class="card" id="card-1-voltage">
-      <div class="label">Voltage</div>
-      <div class="value ok" id="val-1-voltage">--</div>
-      <div class="unit">Volts</div>
-      <div class="reg-badge">40001</div>
-    </div>
-    <div class="card" id="card-1-current">
-      <div class="label">Current</div>
-      <div class="value ok" id="val-1-current">--</div>
-      <div class="unit">Amperes</div>
-      <div class="reg-badge">40002</div>
-    </div>
-    <div class="card" id="card-1-temperature">
-      <div class="label">Temperature</div>
-      <div class="value ok" id="val-1-temperature">--</div>
-      <div class="unit">°C</div>
-      <div class="reg-badge">40003</div>
-    </div>
-  </div>
-</div>
+<!-- ═══════════════════════════════════════ -->
+<!-- TAB 1: LIVE DATA                        -->
+<!-- ═══════════════════════════════════════ -->
+<div class="tab-content active" id="tab-live">
 
-<!-- ── Device 2: Transformer T1 ── -->
-<div class="device-section">
-  <div class="device-header">
-    <h2>Transformer T1</h2>
-    <span class="slave-badge">Slave ID: 2</span>
+  <!-- Register Map Bar -->
+  <div class="regmap">
+    <div class="regmap-item">40001 <span>→ Voltage (V)</span></div>
+    <div class="regmap-item">40002 <span>→ Current (A)</span></div>
+    <div class="regmap-item">40003 <span>→ Temperature (°C)</span></div>
   </div>
-  <div class="grid">
-    <div class="card" id="card-2-voltage">
-      <div class="label">Voltage</div>
-      <div class="value ok" id="val-2-voltage">--</div>
-      <div class="unit">Volts</div>
-      <div class="reg-badge">40001</div>
+
+  <!-- Device 1: Feeder A -->
+  <div class="device-section">
+    <div class="device-header">
+      <h2>Feeder A</h2>
+      <span class="slave-badge">Slave ID: 1</span>
     </div>
-    <div class="card" id="card-2-current">
-      <div class="label">Current</div>
-      <div class="value ok" id="val-2-current">--</div>
-      <div class="unit">Amperes</div>
-      <div class="reg-badge">40002</div>
-    </div>
-    <div class="card" id="card-2-temperature">
-      <div class="label">Temperature</div>
-      <div class="value ok" id="val-2-temperature">--</div>
-      <div class="unit">°C</div>
-      <div class="reg-badge">40003</div>
+    <div class="grid">
+      <div class="card" id="card-1-voltage">
+        <div class="label">Voltage</div>
+        <div class="value ok" id="val-1-voltage">--</div>
+        <div class="unit">Volts</div>
+        <div class="reg-badge">40001</div>
+      </div>
+      <div class="card" id="card-1-current">
+        <div class="label">Current</div>
+        <div class="value ok" id="val-1-current">--</div>
+        <div class="unit">Amperes</div>
+        <div class="reg-badge">40002</div>
+      </div>
+      <div class="card" id="card-1-temperature">
+        <div class="label">Temperature</div>
+        <div class="value ok" id="val-1-temperature">--</div>
+        <div class="unit">°C</div>
+        <div class="reg-badge">40003</div>
+      </div>
     </div>
   </div>
-</div>
 
-<!-- ── Device 3: Substation S1 ── -->
-<div class="device-section">
-  <div class="device-header">
-    <h2>Substation S1</h2>
-    <span class="slave-badge">Slave ID: 3</span>
+  <!-- Device 2: Transformer T1 -->
+  <div class="device-section">
+    <div class="device-header">
+      <h2>Transformer T1</h2>
+      <span class="slave-badge">Slave ID: 2</span>
+    </div>
+    <div class="grid">
+      <div class="card" id="card-2-voltage">
+        <div class="label">Voltage</div>
+        <div class="value ok" id="val-2-voltage">--</div>
+        <div class="unit">Volts</div>
+        <div class="reg-badge">40001</div>
+      </div>
+      <div class="card" id="card-2-current">
+        <div class="label">Current</div>
+        <div class="value ok" id="val-2-current">--</div>
+        <div class="unit">Amperes</div>
+        <div class="reg-badge">40002</div>
+      </div>
+      <div class="card" id="card-2-temperature">
+        <div class="label">Temperature</div>
+        <div class="value ok" id="val-2-temperature">--</div>
+        <div class="unit">°C</div>
+        <div class="reg-badge">40003</div>
+      </div>
+    </div>
   </div>
-  <div class="grid">
-    <div class="card" id="card-3-voltage">
-      <div class="label">Voltage</div>
-      <div class="value ok" id="val-3-voltage">--</div>
-      <div class="unit">Volts</div>
-      <div class="reg-badge">40001</div>
+
+  <!-- Device 3: Substation S1 -->
+  <div class="device-section">
+    <div class="device-header">
+      <h2>Substation S1</h2>
+      <span class="slave-badge">Slave ID: 3</span>
     </div>
-    <div class="card" id="card-3-current">
-      <div class="label">Current</div>
-      <div class="value ok" id="val-3-current">--</div>
-      <div class="unit">Amperes</div>
-      <div class="reg-badge">40002</div>
-    </div>
-    <div class="card" id="card-3-temperature">
-      <div class="label">Temperature</div>
-      <div class="value ok" id="val-3-temperature">--</div>
-      <div class="unit">°C</div>
-      <div class="reg-badge">40003</div>
+    <div class="grid">
+      <div class="card" id="card-3-voltage">
+        <div class="label">Voltage</div>
+        <div class="value ok" id="val-3-voltage">--</div>
+        <div class="unit">Volts</div>
+        <div class="reg-badge">40001</div>
+      </div>
+      <div class="card" id="card-3-current">
+        <div class="label">Current</div>
+        <div class="value ok" id="val-3-current">--</div>
+        <div class="unit">Amperes</div>
+        <div class="reg-badge">40002</div>
+      </div>
+      <div class="card" id="card-3-temperature">
+        <div class="label">Temperature</div>
+        <div class="value ok" id="val-3-temperature">--</div>
+        <div class="unit">°C</div>
+        <div class="reg-badge">40003</div>
+      </div>
     </div>
   </div>
-</div>
 
-<!-- Alarm summary chips -->
-<div class="alarm-summary">
-  <div class="summary-chip active"  id="count-active">ACTIVE: 0</div>
-  <div class="summary-chip ack"     id="count-ack">ACKNOWLEDGED: 0</div>
-  <div class="summary-chip cleared" id="count-cleared">CLEARED: 0</div>
-</div>
+</div><!-- end tab-live -->
 
-<!-- Active + Acknowledged Alarms -->
-<section class="table-section">
-  <h2>⚠ Active &amp; Acknowledged Alarms</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Time</th>
-        <th>Device</th>
-        <th>Register</th>
-        <th>Parameter</th>
-        <th>Value</th>
-        <th>Priority</th>
-        <th>Message</th>
-        <th>Status</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody id="alarm-body">
-      <tr><td colspan="9" style="color:#8b949e">No active alarms</td></tr>
-    </tbody>
-  </table>
-</section>
+<!-- ═══════════════════════════════════════ -->
+<!-- TAB 2: HISTORIAN                        -->
+<!-- ═══════════════════════════════════════ -->
+<div class="tab-content" id="tab-historian">
 
-<!-- Alarm History (CLEARED) -->
-<section class="table-section">
-  <h2>📋 Alarm History (Cleared)</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Raised At</th>
-        <th>Cleared At</th>
-        <th>Device</th>
-        <th>Register</th>
-        <th>Parameter</th>
-        <th>Priority</th>
-        <th>Message</th>
-      </tr>
-    </thead>
-    <tbody id="alarm-history-body">
-      <tr><td colspan="7" style="color:#8b949e">No cleared alarms yet</td></tr>
-    </tbody>
-  </table>
-</section>
+  <!-- Controls -->
+  <div class="trends-controls">
+    <label>Device:</label>
+    <select id="trend-device" onchange="loadTrends()">
+      <option value="1">Feeder A (Slave 1)</option>
+      <option value="2">Transformer T1 (Slave 2)</option>
+      <option value="3">Substation S1 (Slave 3)</option>
+    </select>
 
-<!-- Recent Readings -->
-<section class="table-section">
-  <h2>📡 Recent Readings</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Timestamp</th>
-        <th>Device</th>
-        <th>Register</th>
-        <th>Parameter</th>
-        <th>Value</th>
-      </tr>
-    </thead>
-    <tbody id="history-body"></tbody>
-  </table>
-</section>
+    <label>Time Range:</label>
+    <div class="time-toggle">
+      <button class="time-btn active" id="btn-1h" onclick="setHours(1)">1 Hour</button>
+      <button class="time-btn" id="btn-24h" onclick="setHours(24)">24 Hours</button>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="chart-grid">
+    <div class="chart-card">
+      <h3>Voltage — Register 40001</h3>
+      <div class="chart-meta" id="chart-meta-voltage"></div>
+      <canvas id="chart-voltage" height="120"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Current — Register 40002</h3>
+      <div class="chart-meta" id="chart-meta-current"></div>
+      <canvas id="chart-current" height="120"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Temperature — Register 40003</h3>
+      <div class="chart-meta" id="chart-meta-temp"></div>
+      <canvas id="chart-temp" height="120"></canvas>
+    </div>
+  </div>
+
+</div><!-- end tab-historian -->
+
+<!-- ═══════════════════════════════════════ -->
+<!-- TAB 3: ALARMS                           -->
+<!-- ═══════════════════════════════════════ -->
+<div class="tab-content" id="tab-alarms">
+
+  <!-- Alarm summary chips -->
+  <div class="alarm-summary" style="padding-top:20px;">
+    <div class="summary-chip active"  id="count-active">ACTIVE: 0</div>
+    <div class="summary-chip ack"     id="count-ack">ACKNOWLEDGED: 0</div>
+    <div class="summary-chip cleared" id="count-cleared">CLEARED: 0</div>
+  </div>
+
+  <!-- Active + Acknowledged -->
+  <section class="table-section">
+    <h2>⚠ Active &amp; Acknowledged Alarms</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th><th>Device</th><th>Register</th>
+          <th>Parameter</th><th>Value</th><th>Priority</th>
+          <th>Message</th><th>Status</th><th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="alarm-body">
+        <tr><td colspan="9" style="color:#8b949e">No active alarms ✓</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- Alarm History -->
+  <section class="table-section">
+    <h2>📋 Alarm History (Cleared)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Raised At</th><th>Cleared At</th><th>Device</th>
+          <th>Register</th><th>Parameter</th><th>Priority</th><th>Message</th>
+        </tr>
+      </thead>
+      <tbody id="alarm-history-body">
+        <tr><td colspan="7" style="color:#8b949e">No cleared alarms yet</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</div><!-- end tab-alarms -->
+
+<!-- ═══════════════════════════════════════ -->
+<!-- TAB 4: RECENT READINGS                  -->
+<!-- ═══════════════════════════════════════ -->
+<div class="tab-content" id="tab-readings">
+  <section class="table-section" style="padding-top:20px;">
+    <h2>📡 Recent Readings</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Timestamp</th><th>Device</th>
+          <th>Register</th><th>Parameter</th><th>Value</th>
+        </tr>
+      </thead>
+      <tbody id="history-body"></tbody>
+    </table>
+  </section>
+</div><!-- end tab-readings -->
+
 
 <script>
+  // ─── Chart instances ───
+  let charts = { voltage: null, current: null, temperature: null };
+  let currentHours = 1;
+
   const THRESHOLDS = {
     voltage:     { min: 210, max: 245 },
     current:     { min: 5,   max: 25  },
@@ -299,7 +402,17 @@
   };
   const PARAMETERS = ["voltage", "current", "temperature"];
 
-  // ── Latest readings ──
+  // ─── Tab switching ───
+  function showTab(name) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    event.target.classList.add('active');
+
+    if (name === 'historian') loadTrends();
+  }
+
+  // ─── Live data ───
   async function fetchLatest() {
     const data = await fetch("/api/latest").then(r => r.json());
     let lastTs = "";
@@ -318,7 +431,6 @@
         valEl.textContent = info.value.toFixed(1);
         valEl.className   = "value " + (inAlarm ? "alarm" : "ok");
         cardEl.className  = "card "  + (inAlarm ? "alarm" : "");
-
         if (info.timestamp > lastTs) lastTs = info.timestamp;
       });
     });
@@ -328,15 +440,15 @@
     }
   }
 
-  // ── Active + Acknowledged alarms ──
+  // ─── Alarms ───
   async function fetchAlarms() {
     const alarms = await fetch("/api/alarms").then(r => r.json());
     const tbody  = document.getElementById("alarm-body");
 
-    const activeCount = alarms.filter(a => a.status === 'ACTIVE').length;
-    const ackCount    = alarms.filter(a => a.status === 'ACKNOWLEDGED').length;
-    document.getElementById("count-active").textContent = `ACTIVE: ${activeCount}`;
-    document.getElementById("count-ack").textContent    = `ACKNOWLEDGED: ${ackCount}`;
+    document.getElementById("count-active").textContent =
+      `ACTIVE: ${alarms.filter(a => a.status === 'ACTIVE').length}`;
+    document.getElementById("count-ack").textContent =
+      `ACKNOWLEDGED: ${alarms.filter(a => a.status === 'ACKNOWLEDGED').length}`;
 
     if (!alarms.length) {
       tbody.innerHTML = `<tr><td colspan="9" style="color:#8b949e">No active alarms ✓</td></tr>`;
@@ -352,22 +464,16 @@
         <td>${a.value}</td>
         <td><span class="priority ${a.priority}">${a.priority}</span></td>
         <td>${a.message}</td>
-        <td><span class="badge ${a.status === 'ACTIVE' ? 'active' : 'ack'}">
-          ${a.status}
-        </span></td>
-        <td>
-          ${a.status === 'ACTIVE'
-            ? `<button class="ack-btn" onclick="ackAlarm(${a.id})">Acknowledge</button>`
-            : '—'}
-        </td>
+        <td><span class="badge ${a.status === 'ACTIVE' ? 'active' : 'ack'}">${a.status}</span></td>
+        <td>${a.status === 'ACTIVE'
+          ? `<button class="ack-btn" onclick="ackAlarm(${a.id})">Acknowledge</button>`
+          : '—'}</td>
       </tr>`).join("");
   }
 
-  // ── Alarm history (cleared) ──
   async function fetchAlarmHistory() {
     const alarms = await fetch("/api/alarms/history").then(r => r.json());
     const tbody  = document.getElementById("alarm-history-body");
-
     document.getElementById("count-cleared").textContent = `CLEARED: ${alarms.length}`;
 
     if (!alarms.length) {
@@ -387,7 +493,12 @@
       </tr>`).join("");
   }
 
-  // ── Recent readings ──
+  async function ackAlarm(id) {
+    await fetch(`/api/acknowledge/${id}`, { method: "POST" });
+    fetchAlarms();
+  }
+
+  // ─── Recent Readings ───
   async function fetchHistory() {
     const rows  = await fetch("/api/history").then(r => r.json());
     const tbody = document.getElementById("history-body");
@@ -401,13 +512,105 @@
       </tr>`).join("");
   }
 
-  // ── Acknowledge ──
-  async function ackAlarm(id) {
-    await fetch(`/api/acknowledge/${id}`, { method: "POST" });
-    fetchAlarms();
+  // ─── Historian / Trend Charts ───
+  function setHours(h) {
+    currentHours = h;
+    document.getElementById('btn-1h').classList.toggle('active', h === 1);
+    document.getElementById('btn-24h').classList.toggle('active', h === 24);
+    loadTrends();
   }
 
-  // ── Auto refresh every 3 seconds ──
+  function makeChartConfig(label, color, thresholdMax, thresholdMin) {
+    return {
+      type: 'line',
+      data: { labels: [], datasets: [{
+        label: label,
+        data: [],
+        borderColor: color,
+        backgroundColor: color + '18',
+        borderWidth: 1.5,
+        pointRadius: 0,      // no dots — clean line
+        tension: 0.3,
+        fill: true,
+      }]},
+      options: {
+        responsive: true,
+        animation: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            mode: 'index', intersect: false,
+            backgroundColor: '#161b22',
+            borderColor: '#30363d', borderWidth: 1,
+            titleColor: '#8b949e', bodyColor: '#e6edf3',
+          }
+        },
+        scales: {
+          x: {
+            ticks: {
+              color: '#8b949e', maxTicksLimit: 8,
+              maxRotation: 0,
+              callback: function(val, idx) {
+                const label = this.getLabelForValue(val);
+                return label ? label.substring(11, 16) : ''; // show HH:MM only
+              }
+            },
+            grid: { color: '#21262d' }
+          },
+          y: {
+            ticks: { color: '#8b949e' },
+            grid: { color: '#21262d' },
+          }
+        }
+      }
+    };
+  }
+
+  async function loadTrends() {
+    const deviceId = document.getElementById('trend-device').value;
+    const data = await fetch(`/api/trends?device_id=${deviceId}&hours=${currentHours}`)
+      .then(r => r.json());
+
+    if (!data.labels || data.labels.length === 0) {
+      ['voltage','current','temperature'].forEach(p => {
+        const meta = document.getElementById(`chart-meta-${p === 'temperature' ? 'temp' : p}`);
+        if (meta) meta.textContent = 'No data yet — let the system run for a few minutes';
+      });
+      return;
+    }
+
+    const label = data.labels;
+    const rangeText = `${data.device_name} — Last ${currentHours === 1 ? '1 hour' : '24 hours'} — ${label.length} data points`;
+
+    // ── Voltage chart ──
+    document.getElementById('chart-meta-voltage').textContent = rangeText;
+    if (charts.voltage) charts.voltage.destroy();
+    const ctxV = document.getElementById('chart-voltage').getContext('2d');
+    const cfgV = makeChartConfig('Voltage (V)', '#58a6ff', 245, 210);
+    cfgV.data.labels        = label;
+    cfgV.data.datasets[0].data = data.voltage;
+    charts.voltage = new Chart(ctxV, cfgV);
+
+    // ── Current chart ──
+    document.getElementById('chart-meta-current').textContent = rangeText;
+    if (charts.current) charts.current.destroy();
+    const ctxI = document.getElementById('chart-current').getContext('2d');
+    const cfgI = makeChartConfig('Current (A)', '#3fb950', 25, 5);
+    cfgI.data.labels        = label;
+    cfgI.data.datasets[0].data = data.current;
+    charts.current = new Chart(ctxI, cfgI);
+
+    // ── Temperature chart ──
+    document.getElementById('chart-meta-temp').textContent = rangeText;
+    if (charts.temperature) charts.temperature.destroy();
+    const ctxT = document.getElementById('chart-temp').getContext('2d');
+    const cfgT = makeChartConfig('Temperature (°C)', '#e3b341', 90, 0);
+    cfgT.data.labels        = label;
+    cfgT.data.datasets[0].data = data.temperature;
+    charts.temperature = new Chart(ctxT, cfgT);
+  }
+
+  // ─── Auto refresh ───
   function refresh() {
     fetchLatest();
     fetchAlarms();
@@ -417,6 +620,12 @@
 
   refresh();
   setInterval(refresh, 3000);
+  // Refresh charts every 10 seconds if historian tab is open
+  setInterval(() => {
+    if (document.getElementById('tab-historian').classList.contains('active')) {
+      loadTrends();
+    }
+  }, 10000);
 </script>
 
 </body>
