@@ -146,7 +146,7 @@ http://localhost:8080
 - [x] Historian with trend graphs (Chart.js — last 1 hour / 24 hours)
 
 ### Phase 3 — Differentiate
-- [ ] Failure simulation — device offline, data freeze, communication timeout detection
+- [x] Failure simulation — device offline, data freeze, communication timeout detection
 - [ ] Security hardening — firewalld rules, restricted service user, dashboard login
 - [ ] Sequence of Events (SOE) log
 
