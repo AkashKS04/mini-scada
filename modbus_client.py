@@ -1,38 +1,23 @@
 #!/usr/bin/env python3
 """
-modbus_client.py — Multi-Device Data Collector + Smart Alarm Engine
+modbus_client.py — Multi-Device Data Collector + Smart Alarm Engine + Failure Detection
 
-Polls all 3 simulated devices (by Slave ID) using the same register map:
-    40001 (address 1) → Voltage
-    40002 (address 2) → Current
-    40003 (address 3) → Temperature
+Polls all 3 devices and detects the following failure conditions:
 
-Devices:
-    Slave ID 1 → Feeder A
-    Slave ID 2 → Transformer T1
-    Slave ID 3 → Substation S1
+    1. DEVICE OFFLINE
+       - 3 consecutive failed polls → raises HIGH priority alarm
+       - Device responds again → alarm auto-CLEARS
 
-Alarm Lifecycle (real OMS-style state machine):
+    2. DATA FREEZE
+       - Same value for 5 consecutive polls on same register → raises MEDIUM alarm
+       - Value changes again → alarm auto-CLEARS
 
-    Value breaches threshold
-            |
-        [ACTIVE]   <- alarm row created ONCE
-            |
-    Operator acknowledges (via dashboard)
-            |
-    [ACKNOWLEDGED]   <- operator aware, condition may still be bad
-            |
-    Value returns to normal range
-            |
-        [CLEARED]   <- condition resolved automatically
+    3. COMMUNICATION TIMEOUT
+       - Each failed poll is logged
+       - After 3 consecutive failures → escalates to OFFLINE alarm
 
-One alarm = one event. Repeated breaches while ACTIVE/ACKNOWLEDGED
-do NOT create duplicate rows.
-
-Priority levels (assigned per parameter):
-    Voltage     -> HIGH
-    Current     -> MEDIUM
-    Temperature -> LOW
+Alarm lifecycle (same as Phase 2):
+    ACTIVE → ACKNOWLEDGED → CLEARED
 """
 
 import time
@@ -49,14 +34,14 @@ POLL_INTERVAL = 3
 DB_PATH       = "scada.db"
 
 # ─────────────────────────────────────────────
-# Register Map — must match modbus_server.py
+# Register Map
 # ─────────────────────────────────────────────
 REG_VOLTAGE     = 1     # 40001
 REG_CURRENT     = 2     # 40002
 REG_TEMPERATURE = 3     # 40003
 
 # ─────────────────────────────────────────────
-# Devices — must match modbus_server.py
+# Devices
 # ─────────────────────────────────────────────
 DEVICES = {
     1: "Feeder A",
@@ -65,7 +50,7 @@ DEVICES = {
 }
 
 # ─────────────────────────────────────────────
-# Alarm thresholds — applied to every device
+# Threshold alarms
 # ─────────────────────────────────────────────
 THRESHOLDS = {
     "voltage":     {"min": 210.0, "max": 245.0},
@@ -73,9 +58,6 @@ THRESHOLDS = {
     "temperature": {"min":   0.0, "max":  90.0},
 }
 
-# ─────────────────────────────────────────────
-# Alarm priority — assigned per parameter
-# ─────────────────────────────────────────────
 PRIORITY = {
     "voltage":     "HIGH",
     "current":     "MEDIUM",
@@ -83,11 +65,20 @@ PRIORITY = {
 }
 
 # ─────────────────────────────────────────────
-# In-memory tracking of currently open alarms
-# key: (device_id, parameter) -> alarm_id
-# Loaded from DB on startup so restarts don't lose state
+# Failure detection config
 # ─────────────────────────────────────────────
-active_alarms = {}
+OFFLINE_THRESHOLD = 3   # consecutive failed polls before OFFLINE alarm
+FREEZE_THRESHOLD  = 5   # consecutive same-value polls before FREEZE alarm
+
+# ─────────────────────────────────────────────
+# In-memory state tracking
+# ─────────────────────────────────────────────
+active_alarms        = {}   # (device_id, parameter) -> alarm_id
+consecutive_failures = {dev_id: 0 for dev_id in DEVICES}
+offline_alarms       = {}   # device_id -> alarm_id
+freeze_tracker       = {}   # (device_id, address) -> {last_value, count}
+freeze_alarms        = {}   # (device_id, address) -> alarm_id
+device_status        = {dev_id: "online" for dev_id in DEVICES}
 
 
 # ─────────────────────────────────────────────
@@ -113,19 +104,37 @@ def init_db():
     c.execute("""
         CREATE TABLE IF NOT EXISTS alarms (
             id                INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp         TEXT,    -- when alarm was raised (became ACTIVE)
+            timestamp         TEXT,
             device_id         INTEGER,
             device_name       TEXT,
             parameter         TEXT,
             register          TEXT,
             value             REAL,
             message           TEXT,
-            priority          TEXT,    -- HIGH / MEDIUM / LOW
-            status            TEXT DEFAULT 'ACTIVE',  -- ACTIVE / ACKNOWLEDGED / CLEARED
+            priority          TEXT,
+            status            TEXT DEFAULT 'ACTIVE',
+            alarm_type        TEXT DEFAULT 'THRESHOLD',
             ack_timestamp     TEXT,
             cleared_timestamp TEXT
         )
     """)
+
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS device_status (
+            device_id   INTEGER PRIMARY KEY,
+            device_name TEXT,
+            status      TEXT,
+            last_seen   TEXT,
+            updated_at  TEXT
+        )
+    """)
+
+    for dev_id, name in DEVICES.items():
+        c.execute("""
+            INSERT OR IGNORE INTO device_status
+            (device_id, device_name, status, last_seen, updated_at)
+            VALUES (?, ?, 'online', NULL, ?)
+        """, (dev_id, name, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
     conn.commit()
     conn.close()
@@ -133,26 +142,26 @@ def init_db():
 
 
 def load_active_alarms():
-    """
-    On startup, load any alarms that are still ACTIVE or ACKNOWLEDGED
-    into memory, so we don't raise duplicate alarms after a restart.
-    """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
-        "SELECT id, device_id, parameter FROM alarms WHERE status IN ('ACTIVE','ACKNOWLEDGED')"
+        "SELECT id, device_id, parameter, alarm_type FROM alarms WHERE status IN ('ACTIVE','ACKNOWLEDGED')"
     ).fetchall()
     conn.close()
 
     for row in rows:
-        active_alarms[(row["device_id"], row["parameter"])] = row["id"]
+        if row["alarm_type"] == "OFFLINE":
+            offline_alarms[row["device_id"]] = row["id"]
+        elif row["alarm_type"] != "FREEZE":
+            active_alarms[(row["device_id"], row["parameter"])] = row["id"]
 
-    if active_alarms:
-        print(f"[ALARM] Restored {len(active_alarms)} open alarm(s) from previous run")
+    total = len(active_alarms) + len(offline_alarms)
+    if total:
+        print(f"[ALARM] Restored {total} open alarm(s) from DB")
 
 
 # ─────────────────────────────────────────────
-# Readings
+# DB helpers
 # ─────────────────────────────────────────────
 def save_reading(ts, device_id, device_name, parameter, address, value):
     register = f"4{str(address).zfill(4)}"
@@ -167,31 +176,40 @@ def save_reading(ts, device_id, device_name, parameter, address, value):
     conn.close()
 
 
-# ─────────────────────────────────────────────
-# Alarm lifecycle: raise / clear
-# ─────────────────────────────────────────────
-def raise_alarm(ts, device_id, device_name, parameter, address, value, message):
-    """Create a new ACTIVE alarm and return its ID."""
-    register = f"4{str(address).zfill(4)}"
-    priority = PRIORITY[parameter]
+def update_device_status_db(device_id, status, last_seen=None):
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        """UPDATE device_status
+           SET status=?, last_seen=?, updated_at=?
+           WHERE device_id=?""",
+        (status, last_seen or ts, ts, device_id)
+    )
+    conn.commit()
+    conn.close()
+    device_status[device_id] = status
 
+
+def raise_alarm(ts, device_id, device_name, parameter, address,
+                value, message, priority, alarm_type="THRESHOLD"):
+    register = f"4{str(address).zfill(4)}" if address else "—"
     conn = sqlite3.connect(DB_PATH)
     cur = conn.execute(
         """INSERT INTO alarms
-           (timestamp, device_id, device_name, parameter, register, value, message, priority, status)
-           VALUES (?,?,?,?,?,?,?,?, 'ACTIVE')""",
-        (ts, device_id, device_name, parameter, register, value, message, priority)
+           (timestamp, device_id, device_name, parameter, register,
+            value, message, priority, status, alarm_type)
+           VALUES (?,?,?,?,?,?,?,?,'ACTIVE',?)""",
+        (ts, device_id, device_name, parameter, register,
+         value, message, priority, alarm_type)
     )
     alarm_id = cur.lastrowid
     conn.commit()
     conn.close()
-
-    print(f"  [ALARM RAISED][{device_name}] {message} (Priority: {priority})")
+    print(f"  [ALARM RAISED][{device_name}] [{alarm_type}] {message}")
     return alarm_id
 
 
-def clear_alarm(alarm_id, ts, device_name, parameter):
-    """Mark an alarm as CLEARED — condition has returned to normal."""
+def clear_alarm(alarm_id, ts, device_name, reason):
     conn = sqlite3.connect(DB_PATH)
     conn.execute(
         "UPDATE alarms SET status='CLEARED', cleared_timestamp=? WHERE id=?",
@@ -199,40 +217,102 @@ def clear_alarm(alarm_id, ts, device_name, parameter):
     )
     conn.commit()
     conn.close()
+    print(f"  [ALARM CLEARED][{device_name}] {reason}")
 
-    print(f"  [ALARM CLEARED][{device_name}] {parameter.upper()} back to normal")
 
-
-def check_alarms(ts, device_id, device_name, parameter, address, value):
-    """
-    Alarm state machine for one (device, parameter) pair.
-
-    - Breach + no open alarm  -> raise ONE new ACTIVE alarm
-    - Breach + alarm already open (ACTIVE/ACKNOWLEDGED) -> do nothing
-    - Normal + alarm open     -> mark CLEARED
-    - Normal + no alarm open  -> do nothing
-    """
-    lo = THRESHOLDS[parameter]["min"]
-    hi = THRESHOLDS[parameter]["max"]
-    register = f"4{str(address).zfill(4)}"
+# ─────────────────────────────────────────────
+# Threshold alarm state machine
+# ─────────────────────────────────────────────
+def check_threshold_alarm(ts, device_id, device_name, parameter, address, value):
+    lo  = THRESHOLDS[parameter]["min"]
+    hi  = THRESHOLDS[parameter]["max"]
     key = (device_id, parameter)
-
+    register  = f"4{str(address).zfill(4)}"
     in_breach = value > hi or value < lo
 
     if in_breach:
         if key not in active_alarms:
-            if value > hi:
-                message = f"{register} {parameter.upper()} HIGH: {value} exceeds max {hi}"
-            else:
-                message = f"{register} {parameter.upper()} LOW: {value} below min {lo}"
-
-            alarm_id = raise_alarm(ts, device_id, device_name, parameter, address, value, message)
+            msg = (f"{register} {parameter.upper()} HIGH: {value} exceeds max {hi}"
+                   if value > hi else
+                   f"{register} {parameter.upper()} LOW: {value} below min {lo}")
+            alarm_id = raise_alarm(ts, device_id, device_name, parameter,
+                                   address, value, msg, PRIORITY[parameter])
             active_alarms[key] = alarm_id
-        # else: alarm already open, don't create a duplicate
     else:
         if key in active_alarms:
-            clear_alarm(active_alarms[key], ts, device_name, parameter)
+            clear_alarm(active_alarms[key], ts, device_name,
+                        f"{parameter.upper()} back to normal")
             del active_alarms[key]
+
+
+# ─────────────────────────────────────────────
+# Failure detection: OFFLINE
+# ─────────────────────────────────────────────
+def handle_poll_failure(ts, device_id, device_name):
+    consecutive_failures[device_id] += 1
+    count = consecutive_failures[device_id]
+
+    print(f"  [TIMEOUT] Slave {device_id} ({device_name}) — failed poll #{count}")
+
+    if count == OFFLINE_THRESHOLD and device_id not in offline_alarms:
+        msg = (f"Slave {device_id} ({device_name}) OFFLINE — "
+               f"{count} consecutive poll failures")
+        alarm_id = raise_alarm(
+            ts, device_id, device_name,
+            "communication", None, 0.0, msg, "HIGH", "OFFLINE"
+        )
+        offline_alarms[device_id] = alarm_id
+        update_device_status_db(device_id, "offline")
+
+
+def handle_poll_success(ts, device_id, device_name):
+    was_offline = consecutive_failures[device_id] >= OFFLINE_THRESHOLD
+    consecutive_failures[device_id] = 0
+
+    if was_offline and device_id in offline_alarms:
+        clear_alarm(offline_alarms[device_id], ts, device_name,
+                    f"Slave {device_id} ({device_name}) back ONLINE")
+        del offline_alarms[device_id]
+        update_device_status_db(device_id, "online", ts)
+
+
+# ─────────────────────────────────────────────
+# Failure detection: DATA FREEZE
+# ─────────────────────────────────────────────
+def check_freeze(ts, device_id, device_name, parameter, address, value):
+    key = (device_id, address)
+
+    if key not in freeze_tracker:
+        freeze_tracker[key] = {"last_value": value, "count": 1}
+        return
+
+    tracker = freeze_tracker[key]
+
+    if value == tracker["last_value"]:
+        tracker["count"] += 1
+    else:
+        tracker["last_value"] = value
+        tracker["count"] = 1
+
+        if key in freeze_alarms:
+            clear_alarm(freeze_alarms[key], ts, device_name,
+                        f"{parameter.upper()} register unfrozen")
+            del freeze_alarms[key]
+            remaining = [k for k in freeze_alarms if k[0] == device_id]
+            if not remaining and device_id not in offline_alarms:
+                update_device_status_db(device_id, "online", ts)
+        return
+
+    if tracker["count"] >= FREEZE_THRESHOLD and key not in freeze_alarms:
+        register = f"4{str(address).zfill(4)}"
+        msg = (f"{register} {parameter.upper()} DATA FREEZE — "
+               f"value stuck at {value} for {tracker['count']} polls")
+        alarm_id = raise_alarm(
+            ts, device_id, device_name,
+            parameter, address, value, msg, "MEDIUM", "FREEZE"
+        )
+        freeze_alarms[key] = alarm_id
+        update_device_status_db(device_id, "frozen")
 
 
 # ─────────────────────────────────────────────
@@ -249,6 +329,9 @@ def main():
     print("[CLIENT] Devices to poll:")
     for slave_id, name in DEVICES.items():
         print(f"[CLIENT]   Slave {slave_id} -> {name}")
+    print(f"[CLIENT] Failure detection: ENABLED")
+    print(f"[CLIENT]   Offline threshold : {OFFLINE_THRESHOLD} consecutive failures")
+    print(f"[CLIENT]   Freeze threshold  : {FREEZE_THRESHOLD} same-value polls")
     print()
 
     registers = [
@@ -263,31 +346,34 @@ def main():
 
             for slave_id, device_name in DEVICES.items():
                 results = {}
-                all_ok = True
+                all_ok  = True
 
                 for address, parameter in registers:
                     result = client.read_holding_registers(
                         address, count=1, slave=slave_id
                     )
+
                     if not result.isError():
                         value = result.registers[0] / 10.0
-                        results[parameter] = value
+                        results[parameter] = (address, value)
                         save_reading(ts, slave_id, device_name, parameter, address, value)
-                        check_alarms(ts, slave_id, device_name, parameter, address, value)
+                        check_threshold_alarm(ts, slave_id, device_name, parameter, address, value)
+                        check_freeze(ts, slave_id, device_name, parameter, address, value)
                     else:
-                        print(
-                            f"  [ERROR] Slave {slave_id} ({device_name}): "
-                            f"failed to read register 4{str(address).zfill(4)}"
-                        )
                         all_ok = False
 
                 if all_ok:
+                    handle_poll_success(ts, slave_id, device_name)
+                    v = results["voltage"][1]
+                    i = results["current"][1]
+                    t = results["temperature"][1]
+                    status_tag = " [FROZEN]" if device_status.get(slave_id) == "frozen" else ""
                     print(
-                        f"[{ts}] [Slave {slave_id}: {device_name}] "
-                        f"40001=V:{results['voltage']}V  "
-                        f"40002=I:{results['current']}A  "
-                        f"40003=T:{results['temperature']}C"
+                        f"[{ts}] [Slave {slave_id}: {device_name}]{status_tag} "
+                        f"40001=V:{v}V  40002=I:{i}A  40003=T:{t}C"
                     )
+                else:
+                    handle_poll_failure(ts, slave_id, device_name)
 
             time.sleep(POLL_INTERVAL)
 

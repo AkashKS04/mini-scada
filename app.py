@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-app.py — Flask Web Dashboard + REST API (with Historian Trends)
+app.py — Flask Web Dashboard + REST API (Phase 3: Failure Detection)
 
 Endpoints:
     GET  /                            → dashboard UI
     GET  /api/devices                 → list of devices
+    GET  /api/device_status           → online/offline/frozen per device
     GET  /api/latest                  → latest reading per device per parameter
     GET  /api/history                 → last 50 readings (all devices)
     GET  /api/alarms                  → ACTIVE + ACKNOWLEDGED alarms
-    GET  /api/alarms/history          → CLEARED alarms (alarm history)
+    GET  /api/alarms/history          → CLEARED alarms
     POST /api/acknowledge/<id>        → acknowledge an alarm
     GET  /api/trends                  → time-series data for historian charts
                                         ?device_id=1&hours=1
@@ -22,9 +23,6 @@ from datetime import datetime, timedelta
 app = Flask(__name__)
 DB_PATH = "scada.db"
 
-# ─────────────────────────────────────────────
-# Devices + Register Map
-# ─────────────────────────────────────────────
 DEVICES = {
     1: "Feeder A",
     2: "Transformer T1",
@@ -63,6 +61,25 @@ def api_devices():
         {"device_id": dev_id, "device_name": name}
         for dev_id, name in DEVICES.items()
     ])
+
+
+@app.route("/api/device_status")
+def api_device_status():
+    """
+    Returns online/offline/frozen status for every device.
+    Reads from the device_status table maintained by modbus_client.py.
+
+    Response:
+    [
+        {"device_id": 1, "device_name": "Feeder A",       "status": "online",  "last_seen": "..."},
+        {"device_id": 2, "device_name": "Transformer T1", "status": "frozen",  "last_seen": "..."},
+        {"device_id": 3, "device_name": "Substation S1",  "status": "offline", "last_seen": "..."}
+    ]
+    """
+    rows = query_db(
+        "SELECT device_id, device_name, status, last_seen, updated_at FROM device_status ORDER BY device_id"
+    )
+    return jsonify([dict(r) for r in rows])
 
 
 @app.route("/api/latest")
@@ -113,6 +130,7 @@ def api_history():
 
 @app.route("/api/alarms")
 def api_alarms():
+    """Returns ACTIVE and ACKNOWLEDGED alarms, ordered by priority."""
     rows = query_db(
         """SELECT * FROM alarms
            WHERE status IN ('ACTIVE', 'ACKNOWLEDGED')
@@ -156,32 +174,8 @@ def acknowledge(alarm_id):
 
 @app.route("/api/trends")
 def api_trends():
-    """
-    Returns time-series historian data for a given device over
-    the last N hours. Used to power the Chart.js trend graphs.
-
-    Query params:
-        device_id : int  (1, 2, or 3)
-        hours     : int  (1 or 24, default 1)
-
-    Response shape:
-    {
-        "device_id": 1,
-        "device_name": "Feeder A",
-        "hours": 1,
-        "labels": ["2026-06-15 10:00:00", ...],   <- timestamps (x-axis)
-        "voltage":     [230.1, 229.8, ...],         <- values (y-axis)
-        "current":     [14.5, 15.2, ...],
-        "temperature": [72.3, 71.9, ...]
-    }
-
-    For 1 hour: returns every reading (sampled ~every 3s, max ~1200 points)
-    For 24 hours: buckets into 1-minute averages to keep response small
-    """
     device_id = request.args.get("device_id", 1, type=int)
     hours     = request.args.get("hours", 1, type=int)
-
-    # Clamp hours to valid values
     if hours not in (1, 24):
         hours = 1
 
@@ -189,7 +183,6 @@ def api_trends():
     since = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
 
     if hours == 1:
-        # Return raw readings for the last hour
         rows = query_db(
             """SELECT timestamp, parameter, value
                FROM readings
@@ -197,67 +190,38 @@ def api_trends():
                ORDER BY timestamp ASC""",
             (device_id, since)
         )
-
-        # Build per-parameter lists aligned by timestamp
         data = {}
-        labels_set = {}
-
         for row in rows:
-            ts    = row["timestamp"]
-            param = row["parameter"]
-            val   = row["value"]
+            if row["parameter"] not in data:
+                data[row["parameter"]] = {}
+            data[row["parameter"]][row["timestamp"]] = row["value"]
 
-            if param not in data:
-                data[param]       = {}
-            data[param][ts] = val
-
-        # Get union of all timestamps
-        all_ts = sorted(set(
-            ts for param_data in data.values() for ts in param_data
-        ))
-
+        all_ts = sorted(set(ts for pd in data.values() for ts in pd))
         result = {
-            "device_id":   device_id,
-            "device_name": device_name,
-            "hours":       hours,
+            "device_id": device_id, "device_name": device_name, "hours": hours,
             "labels":      all_ts,
             "voltage":     [data.get("voltage",     {}).get(ts) for ts in all_ts],
             "current":     [data.get("current",     {}).get(ts) for ts in all_ts],
             "temperature": [data.get("temperature", {}).get(ts) for ts in all_ts],
         }
-
     else:
-        # 24 hours: bucket into 1-minute averages to reduce data points
         rows = query_db(
-            """SELECT
-                   strftime('%Y-%m-%d %H:%M', timestamp) AS minute,
-                   parameter,
-                   ROUND(AVG(value), 1) AS avg_value
+            """SELECT strftime('%Y-%m-%d %H:%M', timestamp) AS minute,
+                      parameter, ROUND(AVG(value), 1) AS avg_value
                FROM readings
                WHERE device_id=? AND timestamp >= ?
-               GROUP BY minute, parameter
-               ORDER BY minute ASC""",
+               GROUP BY minute, parameter ORDER BY minute ASC""",
             (device_id, since)
         )
-
         data = {}
         for row in rows:
-            minute = row["minute"]
-            param  = row["parameter"]
-            val    = row["avg_value"]
+            if row["parameter"] not in data:
+                data[row["parameter"]] = {}
+            data[row["parameter"]][row["minute"]] = row["avg_value"]
 
-            if param not in data:
-                data[param] = {}
-            data[param][minute] = val
-
-        all_ts = sorted(set(
-            ts for param_data in data.values() for ts in param_data
-        ))
-
+        all_ts = sorted(set(ts for pd in data.values() for ts in pd))
         result = {
-            "device_id":   device_id,
-            "device_name": device_name,
-            "hours":       hours,
+            "device_id": device_id, "device_name": device_name, "hours": hours,
             "labels":      all_ts,
             "voltage":     [data.get("voltage",     {}).get(ts) for ts in all_ts],
             "current":     [data.get("current",     {}).get(ts) for ts in all_ts],
