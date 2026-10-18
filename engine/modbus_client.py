@@ -1,23 +1,6 @@
 #!/usr/bin/env python3
 """
 modbus_client.py — Multi-Device Data Collector + Smart Alarm Engine + Failure Detection
-
-Polls all 3 devices and detects the following failure conditions:
-
-    1. DEVICE OFFLINE
-       - 3 consecutive failed polls → raises HIGH priority alarm
-       - Device responds again → alarm auto-CLEARS
-
-    2. DATA FREEZE
-       - Same value for 5 consecutive polls on same register → raises MEDIUM alarm
-       - Value changes again → alarm auto-CLEARS
-
-    3. COMMUNICATION TIMEOUT
-       - Each failed poll is logged
-       - After 3 consecutive failures → escalates to OFFLINE alarm
-
-Alarm lifecycle (same as Phase 2):
-    ACTIVE → ACKNOWLEDGED → CLEARED
 """
 
 import time
@@ -31,7 +14,8 @@ from pymodbus.client import ModbusTcpClient
 HOST          = "127.0.0.1"
 PORT          = 5020
 POLL_INTERVAL = 3
-DB_PATH       = "scada.db"
+import os
+DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'scada.db')
 
 # ─────────────────────────────────────────────
 # Register Map
@@ -67,17 +51,17 @@ PRIORITY = {
 # ─────────────────────────────────────────────
 # Failure detection config
 # ─────────────────────────────────────────────
-OFFLINE_THRESHOLD = 3   # consecutive failed polls before OFFLINE alarm
-FREEZE_THRESHOLD  = 5   # consecutive same-value polls before FREEZE alarm
+OFFLINE_THRESHOLD = 3
+FREEZE_THRESHOLD  = 5
 
 # ─────────────────────────────────────────────
 # In-memory state tracking
 # ─────────────────────────────────────────────
-active_alarms        = {}   # (device_id, parameter) -> alarm_id
+active_alarms        = {}
 consecutive_failures = {dev_id: 0 for dev_id in DEVICES}
-offline_alarms       = {}   # device_id -> alarm_id
-freeze_tracker       = {}   # (device_id, address) -> {last_value, count}
-freeze_alarms        = {}   # (device_id, address) -> alarm_id
+offline_alarms       = {}
+freeze_tracker       = {}
+freeze_alarms        = {}
 device_status        = {dev_id: "online" for dev_id in DEVICES}
 
 
@@ -324,7 +308,15 @@ def main():
 
     client = ModbusTcpClient(HOST, port=PORT)
     print(f"[CLIENT] Connecting to Modbus server at {HOST}:{PORT} ...")
-    client.connect()
+
+    # Retry connection until server is ready
+    connected = False
+    while not connected:
+        connected = client.connect()
+        if not connected:
+            print("[CLIENT] Server not ready, retrying in 3 seconds...")
+            time.sleep(3)
+
     print("[CLIENT] Connected.")
     print("[CLIENT] Devices to poll:")
     for slave_id, name in DEVICES.items():
