@@ -238,6 +238,7 @@ def init_db():
             ack_timestamp     TEXT,
             ack_by            TEXT,
             cleared_timestamp TEXT,
+            rtn_timestamp     TEXT,
             auto_clear        INTEGER DEFAULT 0
         )
     """)
@@ -271,6 +272,28 @@ def init_db():
             updated_at      TEXT
         )
     """)
+
+    # Breaker control commands (queued by the API, executed by the control layer)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS control_commands (
+            id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp          TEXT,
+            slave_id           INTEGER,
+            device_id          TEXT,
+            device_name        TEXT,
+            substation_id      TEXT,
+            command            TEXT,
+            operator           TEXT,
+            status             TEXT DEFAULT 'PENDING',
+            result             TEXT,
+            executed_timestamp TEXT
+        )
+    """)
+
+    # Indexes so trend and latest-value queries stay fast as readings grow
+    c.execute("CREATE INDEX IF NOT EXISTS idx_readings_dev_param ON readings(slave_id, parameter, id)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_readings_dev_ts ON readings(slave_id, timestamp)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_alarms_status ON alarms(status, id)")
 
     conn.commit()
 
@@ -401,31 +424,78 @@ def raise_alarm(dev, parameter, value, limit_value, alarm_type, priority, messag
 
 
 def clear_alarm(alarm_id, dev, reason, auto=False):
-    """Mark alarm CLEARED. Only auto-clears if auto_clear=1 OR manual call."""
+    """
+    Returns True if the alarm is closed (CLEARED), False if it stays open.
+
+    auto=True means the condition has returned to normal:
+        MEDIUM/LOW (auto_clear)   -> CLEARED automatically
+        CRITICAL/HIGH (manual)    -> stays open, marked "returned to normal"
+                                     (rtn_timestamp). The operator must still
+                                     ACK and clear it.
+    """
     conn = sqlite3.connect(DB_PATH)
-    row  = conn.execute(
-        "SELECT auto_clear, ack_required, status FROM alarms WHERE id=?",
-        (alarm_id,)
+    row = conn.execute(
+        "SELECT auto_clear FROM alarms WHERE id=?", (alarm_id,)
     ).fetchone()
 
     if not row:
         conn.close()
-        return
+        return True   # alarm no longer exists, stop tracking it
 
-    # Don't auto-clear if alarm requires manual handling
     if auto and not row[0]:
+        cur = conn.execute(
+            "UPDATE alarms SET rtn_timestamp=? "
+            "WHERE id=? AND rtn_timestamp IS NULL "
+            "AND status IN ('ACTIVE','ACKNOWLEDGED')",
+            (now_ts(), alarm_id)
+        )
+        conn.commit()
+        changed = cur.rowcount
         conn.close()
-        return
+        if changed:
+            print(f"  [RTN][{dev['name']}] {reason} - awaiting operator ACK/clear")
+            log_soe(dev, 'ALARM_RTN', message=reason)
+        return False
 
-    conn.execute("""
-        UPDATE alarms SET status='CLEARED', cleared_timestamp=?
-        WHERE id=?
-    """, (now_ts(), alarm_id))
+    conn.execute(
+        "UPDATE alarms SET status='CLEARED', cleared_timestamp=? WHERE id=?",
+        (now_ts(), alarm_id)
+    )
     conn.commit()
     conn.close()
 
     print(f"  [CLEARED][{dev['name']}] {reason}")
     log_soe(dev, 'ALARM_CLEARED', message=reason)
+    return True
+
+
+def reopen_alarm(alarm_id):
+    """Condition is back in breach: drop the 'returned to normal' mark."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        "UPDATE alarms SET rtn_timestamp=NULL "
+        "WHERE id=? AND rtn_timestamp IS NOT NULL",
+        (alarm_id,)
+    )
+    conn.commit()
+    conn.close()
+
+
+def sync_open_alarms():
+    """
+    Forget tracked alarms that the operator has already cleared through the
+    API, so a condition that is still in breach raises a fresh alarm.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    open_ids = {r[0] for r in conn.execute(
+        "SELECT id FROM alarms WHERE status IN ('ACTIVE','ACKNOWLEDGED')"
+    )}
+    conn.close()
+
+    for table in (active_analog_alarms, offline_alarms,
+                  freeze_alarms, breaker_trip_alarms):
+        for key in [k for k, v in table.items() if v not in open_ids]:
+            del table[key]
 
 
 # ─────────────────────────────────────────────
@@ -467,31 +537,41 @@ def check_analog_alarm(dev, parameter, value):
 
     unit = limits.get('unit', '')
 
-    # Check all 4 limit types for this parameter
-    all_types = ['ANALOG_HIGH_HIGH', 'ANALOG_HIGH', 'ANALOG_LOW_LOW', 'ANALOG_LOW']
+    # Which limits are violated right now?
+    def violated(atype):
+        if atype == 'ANALOG_HIGH_HIGH':
+            return 'high_high' in limits and value >= limits['high_high']
+        if atype == 'ANALOG_HIGH':
+            return 'high' in limits and value >= limits['high']
+        if atype == 'ANALOG_LOW_LOW':
+            return ('low_low' in limits and limits['low_low'] >= 0
+                    and value <= limits['low_low'])
+        return 'low' in limits and value <= limits['low']
 
-    for atype in all_types:
+    labels = {
+        'ANALOG_HIGH_HIGH': 'HIGH-HIGH', 'ANALOG_HIGH': 'HIGH',
+        'ANALOG_LOW_LOW':   'LOW-LOW',   'ANALOG_LOW':  'LOW',
+    }
+
+    for atype in ('ANALOG_HIGH_HIGH', 'ANALOG_HIGH',
+                  'ANALOG_LOW_LOW', 'ANALOG_LOW'):
         key = (sid, parameter, atype)
 
-        if atype == breached_type:
-            # Should be alarming
-            if key not in active_analog_alarms:
-                direction = 'HIGH' if 'HIGH' in atype else 'LOW'
-                msg = (
-                    f"{parameter.upper()} {direction}: "
-                    f"{value:.3f}{unit} "
-                    f"({'exceeds' if direction == 'HIGH' else 'below'} "
-                    f"{'HIGH-HIGH' if 'HIGH_HIGH' in atype else 'HIGH' if 'HIGH' in atype else 'LOW-LOW' if 'LOW_LOW' in atype else 'LOW'} "
-                    f"limit {breached_limit}{unit})"
-                )
-                alarm_id = raise_alarm(dev, parameter, value,
-                                       breached_limit, atype, priority, msg)
-                active_analog_alarms[key] = alarm_id
-        else:
-            # Should not be alarming — clear if it was
+        if violated(atype):
             if key in active_analog_alarms:
-                clear_alarm(active_analog_alarms[key], dev,
-                            f"{parameter.upper()} returned to normal", auto=True)
+                # Still (or again) in breach: keep the existing alarm,
+                # never raise a duplicate
+                reopen_alarm(active_analog_alarms[key])
+            elif atype == breached_type:
+                msg = (f"{parameter.upper()} {labels[atype]}: "
+                       f"{value:.3f}{unit} (limit {breached_limit}{unit})")
+                active_analog_alarms[key] = raise_alarm(
+                    dev, parameter, value, breached_limit,
+                    atype, priority, msg)
+        elif key in active_analog_alarms:
+            if clear_alarm(active_analog_alarms[key], dev,
+                           f"{parameter.upper()} returned to normal",
+                           auto=True):
                 del active_analog_alarms[key]
 
 
@@ -526,18 +606,22 @@ def check_breaker_state(dev, raw_state):
 
     # TRIP alarm
     if raw_state == 2:  # TRIPPED
-        if sid not in breaker_trip_alarms:
-            msg = (f"BREAKER TRIP: {dev['name']} breaker has TRIPPED — "
+        if sid in breaker_trip_alarms:
+            reopen_alarm(breaker_trip_alarms[sid])
+        else:
+            msg = (f"BREAKER TRIP: {dev['name']} breaker has TRIPPED - "
                    f"feeder de-energised")
-            alarm_id = raise_alarm(dev, 'breaker_state', raw_state, 2,
-                                   'BREAKER_TRIP', 'CRITICAL', msg)
-            breaker_trip_alarms[sid] = alarm_id
+            breaker_trip_alarms[sid] = raise_alarm(
+                dev, 'breaker_state', raw_state, 2,
+                'BREAKER_TRIP', 'CRITICAL', msg)
 
-    # Auto-reclose clears the trip alarm
+    # Breaker closed again: trip alarm returns to normal, operator still
+    # has to ACK and clear it
     elif raw_state == 1 and sid in breaker_trip_alarms:
-        clear_alarm(breaker_trip_alarms[sid], dev,
-                    f"{dev['name']} breaker reclosed — feeder restored", auto=True)
-        del breaker_trip_alarms[sid]
+        if clear_alarm(breaker_trip_alarms[sid], dev,
+                       f"{dev['name']} breaker reclosed - feeder restored",
+                       auto=True):
+            del breaker_trip_alarms[sid]
 
     breaker_states[sid] = raw_state
 
@@ -552,12 +636,14 @@ def handle_poll_failure(dev):
 
     print(f"  [TIMEOUT] Slave {sid} ({dev['name']}) — failed poll #{count}")
 
-    if count == OFFLINE_THRESHOLD and sid not in offline_alarms:
-        msg = (f"COMMS FAIL: {dev['name']} OFFLINE — "
-               f"{count} consecutive poll failures")
-        alarm_id = raise_alarm(dev, 'communication', 0, 0,
-                               'OFFLINE', 'HIGH', msg)
-        offline_alarms[sid] = alarm_id
+    if count == OFFLINE_THRESHOLD:
+        if sid in offline_alarms:
+            reopen_alarm(offline_alarms[sid])
+        else:
+            msg = (f"COMMS FAIL: {dev['name']} OFFLINE - "
+                   f"{count} consecutive poll failures")
+            offline_alarms[sid] = raise_alarm(
+                dev, 'communication', 0, 0, 'OFFLINE', 'HIGH', msg)
         update_comms_status(dev, 'offline')
 
 
@@ -566,12 +652,13 @@ def handle_poll_success(dev):
     was_offline = consecutive_failures[sid] >= OFFLINE_THRESHOLD
     consecutive_failures[sid] = 0
 
-    if was_offline and sid in offline_alarms:
-        clear_alarm(offline_alarms[sid], dev,
-                    f"{dev['name']} comms restored", auto=True)
-        del offline_alarms[sid]
+    if was_offline:
         update_comms_status(dev, 'online', now_ts())
         log_soe(dev, 'COMMS_RESTORED', message=f"{dev['name']} back online")
+        if sid in offline_alarms:
+            if clear_alarm(offline_alarms[sid], dev,
+                           f"{dev['name']} comms restored", auto=True):
+                del offline_alarms[sid]
 
 
 # ─────────────────────────────────────────────
@@ -635,6 +722,7 @@ def main():
     try:
         while True:
             ts = now_ts()
+            sync_open_alarms()
 
             for sid in sorted(device_registry.keys()):
                 dev    = device_registry[sid]

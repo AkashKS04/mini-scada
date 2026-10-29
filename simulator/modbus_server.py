@@ -188,11 +188,11 @@ def generate_feeder_values(device):
     frequency   = 50.0 + random.uniform(-0.1, 0.1)
 
     # Occasional anomalies (~3% chance)
-    if random.random() < 0.03:
+    if random.random() < 0.001:
         voltage += random.uniform(0.4, 0.8)   # voltage surge
-    if random.random() < 0.03:
+    if random.random() < 0.001:
         current += random.uniform(30, 60)      # current spike
-    if random.random() < 0.02:
+    if random.random() < 0.001:
         power_factor -= random.uniform(0.08, 0.15)  # PF drop
 
     return {
@@ -227,11 +227,11 @@ def generate_transformer_values(device):
     power_factor= 0.88   + random.uniform(-0.05, 0.05)
 
     # Occasional temperature spike
-    if random.random() < 0.04:
+    if random.random() < 0.001:
         temperature += random.uniform(8, 20)
 
     # Occasional overload
-    if random.random() < 0.03:
+    if random.random() < 0.001:
         current  += random.uniform(50, 120)
         power_mw += random.uniform(0.5, 2.0)
 
