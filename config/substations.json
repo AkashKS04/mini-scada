@@ -1,8 +1,7 @@
 {
-  "_comment": "Master configuration for Mini SCADA Phase 4 — 11kV Distribution Substations",
+  "_comment": "Master configuration for Mini SCADA — 5 x 33/11kV distribution substations, 41 devices",
   "_version": "1.0",
   "_based_on": "BESCOM-style 33/11kV distribution substations, Bengaluru",
-
   "system": {
     "name": "Mini SCADA — 11kV Distribution Network",
     "utility": "BESCOM (Bruhat Bengaluru Electricity Supply Company)",
@@ -10,7 +9,6 @@
     "nominal_frequency_hz": 50,
     "poll_interval_seconds": 3
   },
-
   "alarm_priority_rules": {
     "CRITICAL": {
       "manual_ack_required": true,
@@ -27,26 +25,19 @@
       "auto_clear": true,
       "description": "Data quality degraded, freeze — auto-ACK and auto-clear when condition resolves"
     },
-    "LOW": {
-      "manual_ack_required": false,
-      "auto_clear": true,
-      "description": "Informational, device restored — auto-ACK and auto-clear"
-    }
+    "LOW": { "manual_ack_required": false, "auto_clear": true, "description": "Informational, device restored — auto-ACK and auto-clear" }
   },
-
   "register_map": {
     "_comment": "Same register map for every Modbus slave device",
-    "40001": { "parameter": "voltage",      "unit": "kV",   "scale": 100,  "description": "Voltage (stored as kV x100, e.g. 1100 = 11.00kV)" },
-    "40002": { "parameter": "current",      "unit": "A",    "scale": 10,   "description": "Current (stored as A x10)" },
-    "40003": { "parameter": "power_mw",     "unit": "MW",   "scale": 100,  "description": "Active power (stored as MW x100, e.g. 250 = 2.50MW)" },
-    "40004": { "parameter": "power_factor", "unit": "",     "scale": 100,  "description": "Power factor (stored as x100, e.g. 95 = 0.95)" },
-    "40005": { "parameter": "temperature",  "unit": "degC", "scale": 10,   "description": "Temperature (stored as degC x10, transformer only)" },
-    "40006": { "parameter": "frequency",    "unit": "Hz",   "scale": 100,  "description": "Frequency (stored as Hz x100, e.g. 5000 = 50.00Hz)" },
-    "40100": { "parameter": "breaker_state","unit": "",     "scale": 1,    "description": "Breaker state: 0=OPEN, 1=CLOSED, 2=TRIPPED, 3=UNKNOWN" }
+    "40001": { "parameter": "voltage", "unit": "kV", "scale": 100, "description": "Voltage (stored as kV x100, e.g. 1100 = 11.00kV)" },
+    "40002": { "parameter": "current", "unit": "A", "scale": 10, "description": "Current (stored as A x10)" },
+    "40003": { "parameter": "power_mw", "unit": "MW", "scale": 100, "description": "Active power (stored as MW x100, e.g. 250 = 2.50MW)" },
+    "40004": { "parameter": "power_factor", "unit": "", "scale": 100, "description": "Power factor (stored as x100, e.g. 95 = 0.95)" },
+    "40005": { "parameter": "temperature", "unit": "degC", "scale": 10, "description": "Temperature (stored as degC x10, transformer only)" },
+    "40006": { "parameter": "frequency", "unit": "Hz", "scale": 100, "description": "Frequency (stored as Hz x100, e.g. 5000 = 50.00Hz)" },
+    "40100": { "parameter": "breaker_state", "unit": "", "scale": 1, "description": "Breaker state: 0=OPEN, 1=CLOSED, 2=TRIPPED, 3=UNKNOWN" }
   },
-
   "substations": [
-
     {
       "id": "SS-01",
       "name": "Rajajinagar 33/11kV Substation",
@@ -57,7 +48,6 @@
       "voltage_level": "33/11kV",
       "is_feeder_map_substation": true,
       "_comment": "This substation gets the full feeder map with load connectivity",
-
       "transformer": {
         "id": "TR-SS01-T1",
         "name": "T1 — 10MVA 33/11kV",
@@ -65,65 +55,72 @@
         "rating_mva": 10,
         "hv_kv": 33,
         "lv_kv": 11,
-
         "normal_operating": {
-          "hv_voltage_kv":   { "min": 31.0, "max": 35.0 },
-          "lv_voltage_kv":   { "min": 10.5, "max": 11.5 },
-          "current_a":       { "min": 0,    "max": 524  },
-          "power_mw":        { "min": 0,    "max": 10.0 },
-          "temperature_degc":{ "min": 20,   "max": 85   },
-          "frequency_hz":    { "min": 49.5, "max": 50.5 }
+          "hv_voltage_kv": { "min": 31.0, "max": 35.0 },
+          "lv_voltage_kv": { "min": 10.5, "max": 11.5 },
+          "current_a": { "min": 0, "max": 524 },
+          "power_mw": { "min": 0, "max": 10.0 },
+          "temperature_degc": { "min": 20, "max": 85 },
+          "frequency_hz": { "min": 49.5, "max": 50.5 }
         },
-
         "analog_limits": {
           "voltage": {
-            "high_high": 11.8, "high": 11.5,
-            "low": 10.5,       "low_low": 10.0,
+            "high_high": 11.8,
+            "high": 11.5,
+            "low": 10.5,
+            "low_low": 10.0,
             "unit": "kV",
             "priority_high_high": "CRITICAL",
-            "priority_high":      "HIGH",
-            "priority_low":       "HIGH",
-            "priority_low_low":   "CRITICAL"
+            "priority_high": "HIGH",
+            "priority_low": "HIGH",
+            "priority_low_low": "CRITICAL"
           },
           "current": {
-            "high_high": 580,  "high": 524,
-            "low": 0,          "low_low": -1,
+            "high_high": 580,
+            "high": 524,
+            "low": 0,
+            "low_low": -1,
             "unit": "A",
             "priority_high_high": "CRITICAL",
-            "priority_high":      "HIGH",
-            "priority_low":       "LOW",
-            "priority_low_low":   "LOW"
+            "priority_high": "HIGH",
+            "priority_low": "LOW",
+            "priority_low_low": "LOW"
           },
           "power_mw": {
-            "high_high": 11.0, "high": 10.0,
-            "low": 0,          "low_low": -1,
+            "high_high": 11.0,
+            "high": 10.0,
+            "low": 0,
+            "low_low": -1,
             "unit": "MW",
             "priority_high_high": "CRITICAL",
-            "priority_high":      "HIGH",
-            "priority_low":       "LOW",
-            "priority_low_low":   "LOW"
+            "priority_high": "HIGH",
+            "priority_low": "LOW",
+            "priority_low_low": "LOW"
           },
           "temperature": {
-            "high_high": 100,  "high": 85,
-            "low": 0,          "low_low": -1,
+            "high_high": 100,
+            "high": 85,
+            "low": 0,
+            "low_low": -1,
             "unit": "degC",
             "priority_high_high": "CRITICAL",
-            "priority_high":      "HIGH",
-            "priority_low":       "LOW",
-            "priority_low_low":   "LOW"
+            "priority_high": "HIGH",
+            "priority_low": "LOW",
+            "priority_low_low": "LOW"
           },
           "frequency": {
-            "high_high": 51.0, "high": 50.5,
-            "low": 49.5,       "low_low": 49.0,
+            "high_high": 51.0,
+            "high": 50.5,
+            "low": 49.5,
+            "low_low": 49.0,
             "unit": "Hz",
             "priority_high_high": "HIGH",
-            "priority_high":      "MEDIUM",
-            "priority_low":       "MEDIUM",
-            "priority_low_low":   "HIGH"
+            "priority_high": "MEDIUM",
+            "priority_low": "MEDIUM",
+            "priority_low_low": "HIGH"
           }
         }
       },
-
       "feeders": [
         {
           "id": "F-SS01-F1",
@@ -135,19 +132,19 @@
           "estimated_consumers": 4200,
           "connected_load_kw": 3800,
           "cable_length_km": 4.2,
-
           "normal_operating": {
-            "voltage_kv":    { "min": 10.5, "max": 11.5 },
-            "current_a":     { "min": 10,   "max": 180  },
-            "power_mw":      { "min": 0.1,  "max": 2.0  },
-            "power_factor":  { "min": 0.80, "max": 1.0  },
-            "frequency_hz":  { "min": 49.5, "max": 50.5 }
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 10, "max": 180 },
+            "power_mw": { "min": 0.1, "max": 2.0 },
+            "power_factor": { "min": 0.8, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
-
           "analog_limits": {
             "voltage": {
-              "high_high": 11.8, "high": 11.5,
-              "low": 10.5,       "low_low": 10.0,
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
               "unit": "kV",
               "priority_high_high": "CRITICAL",
               "priority_high": "HIGH",
@@ -155,8 +152,10 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 220, "high": 180,
-              "low": 0,         "low_low": -1,
+              "high_high": 220,
+              "high": 180,
+              "low": 0,
+              "low_low": -1,
               "unit": "A",
               "priority_high_high": "CRITICAL",
               "priority_high": "HIGH",
@@ -164,8 +163,10 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 2.4, "high": 2.0,
-              "low": 0,         "low_low": -1,
+              "high_high": 2.4,
+              "high": 2.0,
+              "low": 0,
+              "low_low": -1,
               "unit": "MW",
               "priority_high_high": "CRITICAL",
               "priority_high": "HIGH",
@@ -173,8 +174,10 @@
               "priority_low_low": "LOW"
             },
             "power_factor": {
-              "high_high": 1.05, "high": 1.01,
-              "low": 0.80,       "low_low": 0.70,
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.8,
+              "low_low": 0.7,
               "unit": "",
               "priority_high_high": "LOW",
               "priority_high": "LOW",
@@ -182,8 +185,10 @@
               "priority_low_low": "HIGH"
             },
             "frequency": {
-              "high_high": 51.0, "high": 50.5,
-              "low": 49.5,       "low_low": 49.0,
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
               "unit": "Hz",
               "priority_high_high": "HIGH",
               "priority_high": "MEDIUM",
@@ -191,43 +196,13 @@
               "priority_low_low": "HIGH"
             }
           },
-
           "load_nodes": [
-            {
-              "id": "LN-SS01-F1-01",
-              "name": "Rajajinagar 1st Block",
-              "type": "RESIDENTIAL",
-              "consumers": 850,
-              "load_kw": 720,
-              "x": 120, "y": 80
-            },
-            {
-              "id": "LN-SS01-F1-02",
-              "name": "Rajajinagar 2nd Block",
-              "type": "RESIDENTIAL",
-              "consumers": 1100,
-              "load_kw": 950,
-              "x": 200, "y": 60
-            },
-            {
-              "id": "LN-SS01-F1-03",
-              "name": "Rajajinagar Market",
-              "type": "COMMERCIAL",
-              "consumers": 280,
-              "load_kw": 640,
-              "x": 290, "y": 90
-            },
-            {
-              "id": "LN-SS01-F1-04",
-              "name": "Rajajinagar 5th Block",
-              "type": "RESIDENTIAL",
-              "consumers": 1970,
-              "load_kw": 1490,
-              "x": 370, "y": 70
-            }
+            { "id": "LN-SS01-F1-01", "name": "Rajajinagar 1st Block", "type": "RESIDENTIAL", "consumers": 850, "load_kw": 720, "x": 120, "y": 80 },
+            { "id": "LN-SS01-F1-02", "name": "Rajajinagar 2nd Block", "type": "RESIDENTIAL", "consumers": 1100, "load_kw": 950, "x": 200, "y": 60 },
+            { "id": "LN-SS01-F1-03", "name": "Rajajinagar Market", "type": "COMMERCIAL", "consumers": 280, "load_kw": 640, "x": 290, "y": 90 },
+            { "id": "LN-SS01-F1-04", "name": "Rajajinagar 5th Block", "type": "RESIDENTIAL", "consumers": 1970, "load_kw": 1490, "x": 370, "y": 70 }
           ]
         },
-
         {
           "id": "F-SS01-F2",
           "name": "Feeder 2 — Rajajinagar South",
@@ -238,30 +213,84 @@
           "estimated_consumers": 3600,
           "connected_load_kw": 4200,
           "cable_length_km": 5.1,
-
           "normal_operating": {
-            "voltage_kv":    { "min": 10.5, "max": 11.5 },
-            "current_a":     { "min": 15,   "max": 210  },
-            "power_mw":      { "min": 0.2,  "max": 2.5  },
-            "power_factor":  { "min": 0.82, "max": 1.0  },
-            "frequency_hz":  { "min": 49.5, "max": 50.5 }
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 15, "max": 210 },
+            "power_mw": { "min": 0.2, "max": 2.5 },
+            "power_factor": { "min": 0.82, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
-
           "analog_limits": {
-            "voltage": { "high_high": 11.8, "high": 11.5, "low": 10.5, "low_low": 10.0, "unit": "kV", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "HIGH", "priority_low_low": "CRITICAL" },
-            "current": { "high_high": 260, "high": 210, "low": 0, "low_low": -1, "unit": "A", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" },
-            "power_mw": { "high_high": 3.0, "high": 2.5, "low": 0, "low_low": -1, "unit": "MW", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" },
-            "power_factor": { "high_high": 1.05, "high": 1.01, "low": 0.80, "low_low": 0.70, "unit": "", "priority_high_high": "LOW", "priority_high": "LOW", "priority_low": "MEDIUM", "priority_low_low": "HIGH" },
-            "frequency": { "high_high": 51.0, "high": 50.5, "low": 49.5, "low_low": 49.0, "unit": "Hz", "priority_high_high": "HIGH", "priority_high": "MEDIUM", "priority_low": "MEDIUM", "priority_low_low": "HIGH" }
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 260,
+              "high": 210,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 3.0,
+              "high": 2.5,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.8,
+              "low_low": 0.7,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
           },
-
           "load_nodes": [
             { "id": "LN-SS01-F2-01", "name": "National College Area", "type": "MIXED", "consumers": 920, "load_kw": 1100, "x": 110, "y": 200 },
             { "id": "LN-SS01-F2-02", "name": "Chord Road Commercial", "type": "COMMERCIAL", "consumers": 340, "load_kw": 1400, "x": 200, "y": 230 },
-            { "id": "LN-SS01-F2-03", "name": "Rajajinagar Industrial Area", "type": "INDUSTRIAL", "consumers": 45, "load_kw": 1700, "x": 310, "y": 210 }
+            {
+              "id": "LN-SS01-F2-03",
+              "name": "Rajajinagar Industrial Area",
+              "type": "INDUSTRIAL",
+              "consumers": 45,
+              "load_kw": 1700,
+              "x": 310,
+              "y": 210
+            }
           ]
         },
-
         {
           "id": "F-SS01-F3",
           "name": "Feeder 3 — Dr Rajkumar Road",
@@ -272,30 +301,76 @@
           "estimated_consumers": 2800,
           "connected_load_kw": 3500,
           "cable_length_km": 3.8,
-
           "normal_operating": {
-            "voltage_kv":    { "min": 10.5, "max": 11.5 },
-            "current_a":     { "min": 20,   "max": 190  },
-            "power_mw":      { "min": 0.2,  "max": 2.2  },
-            "power_factor":  { "min": 0.85, "max": 1.0  },
-            "frequency_hz":  { "min": 49.5, "max": 50.5 }
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 20, "max": 190 },
+            "power_mw": { "min": 0.2, "max": 2.2 },
+            "power_factor": { "min": 0.85, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
-
           "analog_limits": {
-            "voltage": { "high_high": 11.8, "high": 11.5, "low": 10.5, "low_low": 10.0, "unit": "kV", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "HIGH", "priority_low_low": "CRITICAL" },
-            "current": { "high_high": 240, "high": 190, "low": 0, "low_low": -1, "unit": "A", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" },
-            "power_mw": { "high_high": 2.8, "high": 2.2, "low": 0, "low_low": -1, "unit": "MW", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" },
-            "power_factor": { "high_high": 1.05, "high": 1.01, "low": 0.82, "low_low": 0.72, "unit": "", "priority_high_high": "LOW", "priority_high": "LOW", "priority_low": "MEDIUM", "priority_low_low": "HIGH" },
-            "frequency": { "high_high": 51.0, "high": 50.5, "low": 49.5, "low_low": 49.0, "unit": "Hz", "priority_high_high": "HIGH", "priority_high": "MEDIUM", "priority_low": "MEDIUM", "priority_low_low": "HIGH" }
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 240,
+              "high": 190,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 2.8,
+              "high": 2.2,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.82,
+              "low_low": 0.72,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
           },
-
           "load_nodes": [
             { "id": "LN-SS01-F3-01", "name": "Palace Guttahalli", "type": "RESIDENTIAL", "consumers": 1200, "load_kw": 980, "x": 420, "y": 160 },
             { "id": "LN-SS01-F3-02", "name": "Dr Rajkumar Road Shops", "type": "COMMERCIAL", "consumers": 480, "load_kw": 1600, "x": 500, "y": 140 },
             { "id": "LN-SS01-F3-03", "name": "Malleswaram 18th Cross", "type": "RESIDENTIAL", "consumers": 1120, "load_kw": 920, "x": 580, "y": 170 }
           ]
         },
-
         {
           "id": "F-SS01-F4",
           "name": "Feeder 4 — Basaveshwara Nagar",
@@ -306,30 +381,92 @@
           "estimated_consumers": 5100,
           "connected_load_kw": 4600,
           "cable_length_km": 6.3,
-
           "normal_operating": {
-            "voltage_kv":    { "min": 10.5, "max": 11.5 },
-            "current_a":     { "min": 20,   "max": 230  },
-            "power_mw":      { "min": 0.2,  "max": 2.8  },
-            "power_factor":  { "min": 0.80, "max": 1.0  },
-            "frequency_hz":  { "min": 49.5, "max": 50.5 }
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 20, "max": 230 },
+            "power_mw": { "min": 0.2, "max": 2.8 },
+            "power_factor": { "min": 0.8, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
-
           "analog_limits": {
-            "voltage": { "high_high": 11.8, "high": 11.5, "low": 10.5, "low_low": 10.0, "unit": "kV", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "HIGH", "priority_low_low": "CRITICAL" },
-            "current": { "high_high": 280, "high": 230, "low": 0, "low_low": -1, "unit": "A", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" },
-            "power_mw": { "high_high": 3.4, "high": 2.8, "low": 0, "low_low": -1, "unit": "MW", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" },
-            "power_factor": { "high_high": 1.05, "high": 1.01, "low": 0.80, "low_low": 0.70, "unit": "", "priority_high_high": "LOW", "priority_high": "LOW", "priority_low": "MEDIUM", "priority_low_low": "HIGH" },
-            "frequency": { "high_high": 51.0, "high": 50.5, "low": 49.5, "low_low": 49.0, "unit": "Hz", "priority_high_high": "HIGH", "priority_high": "MEDIUM", "priority_low": "MEDIUM", "priority_low_low": "HIGH" }
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 280,
+              "high": 230,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 3.4,
+              "high": 2.8,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.8,
+              "low_low": 0.7,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
           },
-
           "load_nodes": [
-            { "id": "LN-SS01-F4-01", "name": "Basaveshwara Nagar 1st Stage", "type": "RESIDENTIAL", "consumers": 1800, "load_kw": 1600, "x": 130, "y": 320 },
-            { "id": "LN-SS01-F4-02", "name": "Basaveshwara Nagar 2nd Stage", "type": "RESIDENTIAL", "consumers": 2100, "load_kw": 1900, "x": 240, "y": 340 },
+            {
+              "id": "LN-SS01-F4-01",
+              "name": "Basaveshwara Nagar 1st Stage",
+              "type": "RESIDENTIAL",
+              "consumers": 1800,
+              "load_kw": 1600,
+              "x": 130,
+              "y": 320
+            },
+            {
+              "id": "LN-SS01-F4-02",
+              "name": "Basaveshwara Nagar 2nd Stage",
+              "type": "RESIDENTIAL",
+              "consumers": 2100,
+              "load_kw": 1900,
+              "x": 240,
+              "y": 340
+            },
             { "id": "LN-SS01-F4-03", "name": "BEL Layout", "type": "MIXED", "consumers": 1200, "load_kw": 1100, "x": 350, "y": 310 }
           ]
         },
-
         {
           "id": "F-SS01-F5",
           "name": "Feeder 5 — Peenya Industrial",
@@ -340,43 +477,104 @@
           "estimated_consumers": 120,
           "connected_load_kw": 5800,
           "cable_length_km": 7.2,
-
           "normal_operating": {
-            "voltage_kv":    { "min": 10.5, "max": 11.5 },
-            "current_a":     { "min": 50,   "max": 290  },
-            "power_mw":      { "min": 0.5,  "max": 3.2  },
-            "power_factor":  { "min": 0.78, "max": 1.0  },
-            "frequency_hz":  { "min": 49.5, "max": 50.5 }
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 50, "max": 290 },
+            "power_mw": { "min": 0.5, "max": 3.2 },
+            "power_factor": { "min": 0.78, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
-
           "analog_limits": {
-            "voltage": { "high_high": 11.8, "high": 11.5, "low": 10.5, "low_low": 10.0, "unit": "kV", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "HIGH", "priority_low_low": "CRITICAL" },
-            "current": { "high_high": 350, "high": 290, "low": 0, "low_low": -1, "unit": "A", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" },
-            "power_mw": { "high_high": 4.0, "high": 3.2, "low": 0, "low_low": -1, "unit": "MW", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" },
-            "power_factor": { "high_high": 1.05, "high": 1.01, "low": 0.78, "low_low": 0.68, "unit": "", "priority_high_high": "LOW", "priority_high": "LOW", "priority_low": "HIGH", "priority_low_low": "CRITICAL" },
-            "frequency": { "high_high": 51.0, "high": 50.5, "low": 49.5, "low_low": 49.0, "unit": "Hz", "priority_high_high": "HIGH", "priority_high": "MEDIUM", "priority_low": "MEDIUM", "priority_low_low": "HIGH" }
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 350,
+              "high": 290,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 4.0,
+              "high": 3.2,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.78,
+              "low_low": 0.68,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
           },
-
           "load_nodes": [
-            { "id": "LN-SS01-F5-01", "name": "Peenya Industrial Estate Phase 1", "type": "INDUSTRIAL", "consumers": 45, "load_kw": 2200, "x": 120, "y": 430 },
-            { "id": "LN-SS01-F5-02", "name": "Peenya Industrial Estate Phase 2", "type": "INDUSTRIAL", "consumers": 38, "load_kw": 1900, "x": 240, "y": 450 },
+            {
+              "id": "LN-SS01-F5-01",
+              "name": "Peenya Industrial Estate Phase 1",
+              "type": "INDUSTRIAL",
+              "consumers": 45,
+              "load_kw": 2200,
+              "x": 120,
+              "y": 430
+            },
+            {
+              "id": "LN-SS01-F5-02",
+              "name": "Peenya Industrial Estate Phase 2",
+              "type": "INDUSTRIAL",
+              "consumers": 38,
+              "load_kw": 1900,
+              "x": 240,
+              "y": 450
+            },
             { "id": "LN-SS01-F5-03", "name": "Peenya KSRTC Depot", "type": "INDUSTRIAL", "consumers": 1, "load_kw": 800, "x": 360, "y": 440 },
             { "id": "LN-SS01-F5-04", "name": "Peenya Small Scale Units", "type": "INDUSTRIAL", "consumers": 36, "load_kw": 900, "x": 460, "y": 420 }
           ]
         }
       ]
     },
-
     {
       "id": "SS-02",
       "name": "Jayanagar 33/11kV Substation",
       "short_name": "JYN",
       "location": "Jayanagar, Bengaluru South",
-      "latitude": 12.9250,
+      "latitude": 12.925,
       "longitude": 77.5938,
       "voltage_level": "33/11kV",
       "is_feeder_map_substation": false,
-
       "transformer": {
         "id": "TR-SS02-T1",
         "name": "T1 — 12.5MVA 33/11kV",
@@ -384,76 +582,2684 @@
         "rating_mva": 12.5,
         "hv_kv": 33,
         "lv_kv": 11,
-
         "normal_operating": {
-          "hv_voltage_kv":   { "min": 31.0, "max": 35.0 },
-          "lv_voltage_kv":   { "min": 10.5, "max": 11.5 },
-          "current_a":       { "min": 0,    "max": 656  },
-          "power_mw":        { "min": 0,    "max": 12.5 },
-          "temperature_degc":{ "min": 20,   "max": 85   },
-          "frequency_hz":    { "min": 49.5, "max": 50.5 }
+          "hv_voltage_kv": { "min": 31.0, "max": 35.0 },
+          "lv_voltage_kv": { "min": 10.5, "max": 11.5 },
+          "current_a": { "min": 0, "max": 656 },
+          "power_mw": { "min": 0, "max": 12.5 },
+          "temperature_degc": { "min": 20, "max": 85 },
+          "frequency_hz": { "min": 49.5, "max": 50.5 }
         },
-
         "analog_limits": {
-          "voltage": { "high_high": 11.8, "high": 11.5, "low": 10.5, "low_low": 10.0, "unit": "kV", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "HIGH", "priority_low_low": "CRITICAL" },
-          "current": { "high_high": 730, "high": 656, "low": 0, "low_low": -1, "unit": "A", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" },
-          "power_mw": { "high_high": 14.0, "high": 12.5, "low": 0, "low_low": -1, "unit": "MW", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" },
-          "temperature": { "high_high": 100, "high": 85, "low": 0, "low_low": -1, "unit": "degC", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" },
-          "frequency": { "high_high": 51.0, "high": 50.5, "low": 49.5, "low_low": 49.0, "unit": "Hz", "priority_high_high": "HIGH", "priority_high": "MEDIUM", "priority_low": "MEDIUM", "priority_low_low": "HIGH" }
+          "voltage": {
+            "high_high": 11.8,
+            "high": 11.5,
+            "low": 10.5,
+            "low_low": 10.0,
+            "unit": "kV",
+            "priority_high_high": "CRITICAL",
+            "priority_high": "HIGH",
+            "priority_low": "HIGH",
+            "priority_low_low": "CRITICAL"
+          },
+          "current": {
+            "high_high": 730,
+            "high": 656,
+            "low": 0,
+            "low_low": -1,
+            "unit": "A",
+            "priority_high_high": "CRITICAL",
+            "priority_high": "HIGH",
+            "priority_low": "LOW",
+            "priority_low_low": "LOW"
+          },
+          "power_mw": {
+            "high_high": 14.0,
+            "high": 12.5,
+            "low": 0,
+            "low_low": -1,
+            "unit": "MW",
+            "priority_high_high": "CRITICAL",
+            "priority_high": "HIGH",
+            "priority_low": "LOW",
+            "priority_low_low": "LOW"
+          },
+          "temperature": {
+            "high_high": 100,
+            "high": 85,
+            "low": 0,
+            "low_low": -1,
+            "unit": "degC",
+            "priority_high_high": "CRITICAL",
+            "priority_high": "HIGH",
+            "priority_low": "LOW",
+            "priority_low_low": "LOW"
+          },
+          "frequency": {
+            "high_high": 51.0,
+            "high": 50.5,
+            "low": 49.5,
+            "low_low": 49.0,
+            "unit": "Hz",
+            "priority_high_high": "HIGH",
+            "priority_high": "MEDIUM",
+            "priority_low": "MEDIUM",
+            "priority_low_low": "HIGH"
+          }
         }
       },
-
       "feeders": [
-        { "id": "F-SS02-F1", "name": "Feeder 1 — Jayanagar 4th Block", "short_name": "F1", "slave_id": 8,  "feeder_number": 1, "load_type": "RESIDENTIAL", "estimated_consumers": 5200, "connected_load_kw": 4800, "cable_length_km": 4.5, "normal_operating": { "voltage_kv": { "min": 10.5, "max": 11.5 }, "current_a": { "min": 20, "max": 240 }, "power_mw": { "min": 0.2, "max": 2.8 }, "power_factor": { "min": 0.82, "max": 1.0 }, "frequency_hz": { "min": 49.5, "max": 50.5 } }, "analog_limits": { "voltage": { "high_high": 11.8, "high": 11.5, "low": 10.5, "low_low": 10.0, "unit": "kV", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "HIGH", "priority_low_low": "CRITICAL" }, "current": { "high_high": 290, "high": 240, "low": 0, "low_low": -1, "unit": "A", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" }, "power_mw": { "high_high": 3.4, "high": 2.8, "low": 0, "low_low": -1, "unit": "MW", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" }, "power_factor": { "high_high": 1.05, "high": 1.01, "low": 0.82, "low_low": 0.72, "unit": "", "priority_high_high": "LOW", "priority_high": "LOW", "priority_low": "MEDIUM", "priority_low_low": "HIGH" }, "frequency": { "high_high": 51.0, "high": 50.5, "low": 49.5, "low_low": 49.0, "unit": "Hz", "priority_high_high": "HIGH", "priority_high": "MEDIUM", "priority_low": "MEDIUM", "priority_low_low": "HIGH" } }, "load_nodes": [] },
-        { "id": "F-SS02-F2", "name": "Feeder 2 — JP Nagar", "short_name": "F2", "slave_id": 9,  "feeder_number": 2, "load_type": "MIXED", "estimated_consumers": 6800, "connected_load_kw": 6200, "cable_length_km": 5.8, "normal_operating": { "voltage_kv": { "min": 10.5, "max": 11.5 }, "current_a": { "min": 30, "max": 310 }, "power_mw": { "min": 0.3, "max": 3.6 }, "power_factor": { "min": 0.80, "max": 1.0 }, "frequency_hz": { "min": 49.5, "max": 50.5 } }, "analog_limits": { "voltage": { "high_high": 11.8, "high": 11.5, "low": 10.5, "low_low": 10.0, "unit": "kV", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "HIGH", "priority_low_low": "CRITICAL" }, "current": { "high_high": 370, "high": 310, "low": 0, "low_low": -1, "unit": "A", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" }, "power_mw": { "high_high": 4.3, "high": 3.6, "low": 0, "low_low": -1, "unit": "MW", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" }, "power_factor": { "high_high": 1.05, "high": 1.01, "low": 0.80, "low_low": 0.70, "unit": "", "priority_high_high": "LOW", "priority_high": "LOW", "priority_low": "MEDIUM", "priority_low_low": "HIGH" }, "frequency": { "high_high": 51.0, "high": 50.5, "low": 49.5, "low_low": 49.0, "unit": "Hz", "priority_high_high": "HIGH", "priority_high": "MEDIUM", "priority_low": "MEDIUM", "priority_low_low": "HIGH" } }, "load_nodes": [] },
-        { "id": "F-SS02-F3", "name": "Feeder 3 — Banashankari", "short_name": "F3", "slave_id": 10, "feeder_number": 3, "load_type": "RESIDENTIAL", "estimated_consumers": 4900, "connected_load_kw": 4400, "cable_length_km": 5.2, "normal_operating": { "voltage_kv": { "min": 10.5, "max": 11.5 }, "current_a": { "min": 20, "max": 220 }, "power_mw": { "min": 0.2, "max": 2.6 }, "power_factor": { "min": 0.81, "max": 1.0 }, "frequency_hz": { "min": 49.5, "max": 50.5 } }, "analog_limits": { "voltage": { "high_high": 11.8, "high": 11.5, "low": 10.5, "low_low": 10.0, "unit": "kV", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "HIGH", "priority_low_low": "CRITICAL" }, "current": { "high_high": 270, "high": 220, "low": 0, "low_low": -1, "unit": "A", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" }, "power_mw": { "high_high": 3.1, "high": 2.6, "low": 0, "low_low": -1, "unit": "MW", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" }, "power_factor": { "high_high": 1.05, "high": 1.01, "low": 0.81, "low_low": 0.71, "unit": "", "priority_high_high": "LOW", "priority_high": "LOW", "priority_low": "MEDIUM", "priority_low_low": "HIGH" }, "frequency": { "high_high": 51.0, "high": 50.5, "low": 49.5, "low_low": 49.0, "unit": "Hz", "priority_high_high": "HIGH", "priority_high": "MEDIUM", "priority_low": "MEDIUM", "priority_low_low": "HIGH" } }, "load_nodes": [] },
-        { "id": "F-SS02-F4", "name": "Feeder 4 — BTM Layout", "short_name": "F4", "slave_id": 11, "feeder_number": 4, "load_type": "MIXED", "estimated_consumers": 7200, "connected_load_kw": 6800, "cable_length_km": 6.1, "normal_operating": { "voltage_kv": { "min": 10.5, "max": 11.5 }, "current_a": { "min": 30, "max": 340 }, "power_mw": { "min": 0.3, "max": 4.0 }, "power_factor": { "min": 0.80, "max": 1.0 }, "frequency_hz": { "min": 49.5, "max": 50.5 } }, "analog_limits": { "voltage": { "high_high": 11.8, "high": 11.5, "low": 10.5, "low_low": 10.0, "unit": "kV", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "HIGH", "priority_low_low": "CRITICAL" }, "current": { "high_high": 410, "high": 340, "low": 0, "low_low": -1, "unit": "A", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" }, "power_mw": { "high_high": 4.8, "high": 4.0, "low": 0, "low_low": -1, "unit": "MW", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" }, "power_factor": { "high_high": 1.05, "high": 1.01, "low": 0.80, "low_low": 0.70, "unit": "", "priority_high_high": "LOW", "priority_high": "LOW", "priority_low": "MEDIUM", "priority_low_low": "HIGH" }, "frequency": { "high_high": 51.0, "high": 50.5, "low": 49.5, "low_low": 49.0, "unit": "Hz", "priority_high_high": "HIGH", "priority_high": "MEDIUM", "priority_low": "MEDIUM", "priority_low_low": "HIGH" } }, "load_nodes": [] },
-        { "id": "F-SS02-F5", "name": "Feeder 5 — Koramangala", "short_name": "F5", "slave_id": 12, "feeder_number": 5, "load_type": "COMMERCIAL", "estimated_consumers": 3800, "connected_load_kw": 5200, "cable_length_km": 4.9, "normal_operating": { "voltage_kv": { "min": 10.5, "max": 11.5 }, "current_a": { "min": 25, "max": 260 }, "power_mw": { "min": 0.3, "max": 3.0 }, "power_factor": { "min": 0.83, "max": 1.0 }, "frequency_hz": { "min": 49.5, "max": 50.5 } }, "analog_limits": { "voltage": { "high_high": 11.8, "high": 11.5, "low": 10.5, "low_low": 10.0, "unit": "kV", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "HIGH", "priority_low_low": "CRITICAL" }, "current": { "high_high": 310, "high": 260, "low": 0, "low_low": -1, "unit": "A", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" }, "power_mw": { "high_high": 3.6, "high": 3.0, "low": 0, "low_low": -1, "unit": "MW", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" }, "power_factor": { "high_high": 1.05, "high": 1.01, "low": 0.83, "low_low": 0.73, "unit": "", "priority_high_high": "LOW", "priority_high": "LOW", "priority_low": "MEDIUM", "priority_low_low": "HIGH" }, "frequency": { "high_high": 51.0, "high": 50.5, "low": 49.5, "low_low": 49.0, "unit": "Hz", "priority_high_high": "HIGH", "priority_high": "MEDIUM", "priority_low": "MEDIUM", "priority_low_low": "HIGH" } }, "load_nodes": [] }
+        {
+          "id": "F-SS02-F1",
+          "name": "Feeder 1 — Jayanagar 4th Block",
+          "short_name": "F1",
+          "slave_id": 8,
+          "feeder_number": 1,
+          "load_type": "RESIDENTIAL",
+          "estimated_consumers": 5200,
+          "connected_load_kw": 4800,
+          "cable_length_km": 4.5,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 20, "max": 240 },
+            "power_mw": { "min": 0.2, "max": 2.8 },
+            "power_factor": { "min": 0.82, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 290,
+              "high": 240,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 3.4,
+              "high": 2.8,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.82,
+              "low_low": 0.72,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS02-F2",
+          "name": "Feeder 2 — JP Nagar",
+          "short_name": "F2",
+          "slave_id": 9,
+          "feeder_number": 2,
+          "load_type": "MIXED",
+          "estimated_consumers": 6800,
+          "connected_load_kw": 6200,
+          "cable_length_km": 5.8,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 30, "max": 310 },
+            "power_mw": { "min": 0.3, "max": 3.6 },
+            "power_factor": { "min": 0.8, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 370,
+              "high": 310,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 4.3,
+              "high": 3.6,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.8,
+              "low_low": 0.7,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS02-F3",
+          "name": "Feeder 3 — Banashankari",
+          "short_name": "F3",
+          "slave_id": 10,
+          "feeder_number": 3,
+          "load_type": "RESIDENTIAL",
+          "estimated_consumers": 4900,
+          "connected_load_kw": 4400,
+          "cable_length_km": 5.2,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 20, "max": 220 },
+            "power_mw": { "min": 0.2, "max": 2.6 },
+            "power_factor": { "min": 0.81, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 270,
+              "high": 220,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 3.1,
+              "high": 2.6,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.81,
+              "low_low": 0.71,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS02-F4",
+          "name": "Feeder 4 — BTM Layout",
+          "short_name": "F4",
+          "slave_id": 11,
+          "feeder_number": 4,
+          "load_type": "MIXED",
+          "estimated_consumers": 7200,
+          "connected_load_kw": 6800,
+          "cable_length_km": 6.1,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 30, "max": 340 },
+            "power_mw": { "min": 0.3, "max": 4.0 },
+            "power_factor": { "min": 0.8, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 410,
+              "high": 340,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 4.8,
+              "high": 4.0,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.8,
+              "low_low": 0.7,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS02-F5",
+          "name": "Feeder 5 — Koramangala",
+          "short_name": "F5",
+          "slave_id": 12,
+          "feeder_number": 5,
+          "load_type": "COMMERCIAL",
+          "estimated_consumers": 3800,
+          "connected_load_kw": 5200,
+          "cable_length_km": 4.9,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 25, "max": 260 },
+            "power_mw": { "min": 0.3, "max": 3.0 },
+            "power_factor": { "min": 0.83, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 310,
+              "high": 260,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 3.6,
+              "high": 3.0,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.83,
+              "low_low": 0.73,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS02-F6",
+          "name": "Feeder 6 — Basavanagudi",
+          "short_name": "F6",
+          "slave_id": 13,
+          "feeder_number": 6,
+          "load_type": "RESIDENTIAL",
+          "estimated_consumers": 4800,
+          "connected_load_kw": 4160,
+          "cable_length_km": 3.9,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 13, "max": 234 },
+            "power_mw": { "min": 0.1, "max": 2.6 },
+            "power_factor": { "min": 0.8, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 286,
+              "high": 234,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 3.1,
+              "high": 2.6,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.8,
+              "low_low": 0.7,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        }
       ]
     },
-
     {
       "id": "SS-03",
       "name": "Whitefield 33/11kV Substation",
       "short_name": "WFD",
       "location": "Whitefield, Bengaluru East",
       "latitude": 12.9698,
-      "longitude": 77.7500,
+      "longitude": 77.75,
       "voltage_level": "33/11kV",
       "is_feeder_map_substation": false,
-
       "transformer": {
         "id": "TR-SS03-T1",
         "name": "T1 — 16MVA 33/11kV",
-        "slave_id": 13,
+        "slave_id": 14,
         "rating_mva": 16,
         "hv_kv": 33,
         "lv_kv": 11,
-
         "normal_operating": {
-          "hv_voltage_kv":   { "min": 31.0, "max": 35.0 },
-          "lv_voltage_kv":   { "min": 10.5, "max": 11.5 },
-          "current_a":       { "min": 0,    "max": 840  },
-          "power_mw":        { "min": 0,    "max": 16.0 },
-          "temperature_degc":{ "min": 20,   "max": 85   },
-          "frequency_hz":    { "min": 49.5, "max": 50.5 }
+          "hv_voltage_kv": { "min": 31.0, "max": 35.0 },
+          "lv_voltage_kv": { "min": 10.5, "max": 11.5 },
+          "current_a": { "min": 0, "max": 840 },
+          "power_mw": { "min": 0, "max": 16.0 },
+          "temperature_degc": { "min": 20, "max": 85 },
+          "frequency_hz": { "min": 49.5, "max": 50.5 }
         },
-
         "analog_limits": {
-          "voltage": { "high_high": 11.8, "high": 11.5, "low": 10.5, "low_low": 10.0, "unit": "kV", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "HIGH", "priority_low_low": "CRITICAL" },
-          "current": { "high_high": 920, "high": 840, "low": 0, "low_low": -1, "unit": "A", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" },
-          "power_mw": { "high_high": 18.0, "high": 16.0, "low": 0, "low_low": -1, "unit": "MW", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" },
-          "temperature": { "high_high": 100, "high": 85, "low": 0, "low_low": -1, "unit": "degC", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" },
-          "frequency": { "high_high": 51.0, "high": 50.5, "low": 49.5, "low_low": 49.0, "unit": "Hz", "priority_high_high": "HIGH", "priority_high": "MEDIUM", "priority_low": "MEDIUM", "priority_low_low": "HIGH" }
+          "voltage": {
+            "high_high": 11.8,
+            "high": 11.5,
+            "low": 10.5,
+            "low_low": 10.0,
+            "unit": "kV",
+            "priority_high_high": "CRITICAL",
+            "priority_high": "HIGH",
+            "priority_low": "HIGH",
+            "priority_low_low": "CRITICAL"
+          },
+          "current": {
+            "high_high": 920,
+            "high": 840,
+            "low": 0,
+            "low_low": -1,
+            "unit": "A",
+            "priority_high_high": "CRITICAL",
+            "priority_high": "HIGH",
+            "priority_low": "LOW",
+            "priority_low_low": "LOW"
+          },
+          "power_mw": {
+            "high_high": 18.0,
+            "high": 16.0,
+            "low": 0,
+            "low_low": -1,
+            "unit": "MW",
+            "priority_high_high": "CRITICAL",
+            "priority_high": "HIGH",
+            "priority_low": "LOW",
+            "priority_low_low": "LOW"
+          },
+          "temperature": {
+            "high_high": 100,
+            "high": 85,
+            "low": 0,
+            "low_low": -1,
+            "unit": "degC",
+            "priority_high_high": "CRITICAL",
+            "priority_high": "HIGH",
+            "priority_low": "LOW",
+            "priority_low_low": "LOW"
+          },
+          "frequency": {
+            "high_high": 51.0,
+            "high": 50.5,
+            "low": 49.5,
+            "low_low": 49.0,
+            "unit": "Hz",
+            "priority_high_high": "HIGH",
+            "priority_high": "MEDIUM",
+            "priority_low": "MEDIUM",
+            "priority_low_low": "HIGH"
+          }
         }
       },
-
       "feeders": [
-        { "id": "F-SS03-F1", "name": "Feeder 1 — Whitefield Main", "short_name": "F1", "slave_id": 14, "feeder_number": 1, "load_type": "MIXED", "estimated_consumers": 8200, "connected_load_kw": 7800, "cable_length_km": 5.5, "normal_operating": { "voltage_kv": { "min": 10.5, "max": 11.5 }, "current_a": { "min": 40, "max": 390 }, "power_mw": { "min": 0.4, "max": 4.5 }, "power_factor": { "min": 0.82, "max": 1.0 }, "frequency_hz": { "min": 49.5, "max": 50.5 } }, "analog_limits": { "voltage": { "high_high": 11.8, "high": 11.5, "low": 10.5, "low_low": 10.0, "unit": "kV", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "HIGH", "priority_low_low": "CRITICAL" }, "current": { "high_high": 470, "high": 390, "low": 0, "low_low": -1, "unit": "A", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" }, "power_mw": { "high_high": 5.4, "high": 4.5, "low": 0, "low_low": -1, "unit": "MW", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" }, "power_factor": { "high_high": 1.05, "high": 1.01, "low": 0.82, "low_low": 0.72, "unit": "", "priority_high_high": "LOW", "priority_high": "LOW", "priority_low": "MEDIUM", "priority_low_low": "HIGH" }, "frequency": { "high_high": 51.0, "high": 50.5, "low": 49.5, "low_low": 49.0, "unit": "Hz", "priority_high_high": "HIGH", "priority_high": "MEDIUM", "priority_low": "MEDIUM", "priority_low_low": "HIGH" } }, "load_nodes": [] },
-        { "id": "F-SS03-F2", "name": "Feeder 2 — ITPL Tech Park", "short_name": "F2", "slave_id": 15, "feeder_number": 2, "load_type": "INDUSTRIAL", "estimated_consumers": 85, "connected_load_kw": 9200, "cable_length_km": 3.2, "normal_operating": { "voltage_kv": { "min": 10.5, "max": 11.5 }, "current_a": { "min": 80, "max": 460 }, "power_mw": { "min": 1.0, "max": 5.3 }, "power_factor": { "min": 0.85, "max": 1.0 }, "frequency_hz": { "min": 49.5, "max": 50.5 } }, "analog_limits": { "voltage": { "high_high": 11.8, "high": 11.5, "low": 10.5, "low_low": 10.0, "unit": "kV", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "HIGH", "priority_low_low": "CRITICAL" }, "current": { "high_high": 550, "high": 460, "low": 0, "low_low": -1, "unit": "A", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" }, "power_mw": { "high_high": 6.4, "high": 5.3, "low": 0, "low_low": -1, "unit": "MW", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" }, "power_factor": { "high_high": 1.05, "high": 1.01, "low": 0.85, "low_low": 0.75, "unit": "", "priority_high_high": "LOW", "priority_high": "LOW", "priority_low": "HIGH", "priority_low_low": "CRITICAL" }, "frequency": { "high_high": 51.0, "high": 50.5, "low": 49.5, "low_low": 49.0, "unit": "Hz", "priority_high_high": "HIGH", "priority_high": "MEDIUM", "priority_low": "MEDIUM", "priority_low_low": "HIGH" } }, "load_nodes": [] },
-        { "id": "F-SS03-F3", "name": "Feeder 3 — Varthur Road", "short_name": "F3", "slave_id": 16, "feeder_number": 3, "load_type": "RESIDENTIAL", "estimated_consumers": 6100, "connected_load_kw": 5600, "cable_length_km": 6.4, "normal_operating": { "voltage_kv": { "min": 10.5, "max": 11.5 }, "current_a": { "min": 30, "max": 280 }, "power_mw": { "min": 0.3, "max": 3.3 }, "power_factor": { "min": 0.80, "max": 1.0 }, "frequency_hz": { "min": 49.5, "max": 50.5 } }, "analog_limits": { "voltage": { "high_high": 11.8, "high": 11.5, "low": 10.5, "low_low": 10.0, "unit": "kV", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "HIGH", "priority_low_low": "CRITICAL" }, "current": { "high_high": 340, "high": 280, "low": 0, "low_low": -1, "unit": "A", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" }, "power_mw": { "high_high": 4.0, "high": 3.3, "low": 0, "low_low": -1, "unit": "MW", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" }, "power_factor": { "high_high": 1.05, "high": 1.01, "low": 0.80, "low_low": 0.70, "unit": "", "priority_high_high": "LOW", "priority_high": "LOW", "priority_low": "MEDIUM", "priority_low_low": "HIGH" }, "frequency": { "high_high": 51.0, "high": 50.5, "low": 49.5, "low_low": 49.0, "unit": "Hz", "priority_high_high": "HIGH", "priority_high": "MEDIUM", "priority_low": "MEDIUM", "priority_low_low": "HIGH" } }, "load_nodes": [] },
-        { "id": "F-SS03-F4", "name": "Feeder 4 — Brookefield", "short_name": "F4", "slave_id": 17, "feeder_number": 4, "load_type": "MIXED", "estimated_consumers": 5400, "connected_load_kw": 5100, "cable_length_km": 4.8, "normal_operating": { "voltage_kv": { "min": 10.5, "max": 11.5 }, "current_a": { "min": 25, "max": 255 }, "power_mw": { "min": 0.3, "max": 3.0 }, "power_factor": { "min": 0.82, "max": 1.0 }, "frequency_hz": { "min": 49.5, "max": 50.5 } }, "analog_limits": { "voltage": { "high_high": 11.8, "high": 11.5, "low": 10.5, "low_low": 10.0, "unit": "kV", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "HIGH", "priority_low_low": "CRITICAL" }, "current": { "high_high": 310, "high": 255, "low": 0, "low_low": -1, "unit": "A", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" }, "power_mw": { "high_high": 3.6, "high": 3.0, "low": 0, "low_low": -1, "unit": "MW", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" }, "power_factor": { "high_high": 1.05, "high": 1.01, "low": 0.82, "low_low": 0.72, "unit": "", "priority_high_high": "LOW", "priority_high": "LOW", "priority_low": "MEDIUM", "priority_low_low": "HIGH" }, "frequency": { "high_high": 51.0, "high": 50.5, "low": 49.5, "low_low": 49.0, "unit": "Hz", "priority_high_high": "HIGH", "priority_high": "MEDIUM", "priority_low": "MEDIUM", "priority_low_low": "HIGH" } }, "load_nodes": [] },
-        { "id": "F-SS03-F5", "name": "Feeder 5 — Mahadevapura", "short_name": "F5", "slave_id": 18, "feeder_number": 5, "load_type": "MIXED", "estimated_consumers": 7600, "connected_load_kw": 7100, "cable_length_km": 5.9, "normal_operating": { "voltage_kv": { "min": 10.5, "max": 11.5 }, "current_a": { "min": 35, "max": 355 }, "power_mw": { "min": 0.4, "max": 4.1 }, "power_factor": { "min": 0.81, "max": 1.0 }, "frequency_hz": { "min": 49.5, "max": 50.5 } }, "analog_limits": { "voltage": { "high_high": 11.8, "high": 11.5, "low": 10.5, "low_low": 10.0, "unit": "kV", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "HIGH", "priority_low_low": "CRITICAL" }, "current": { "high_high": 430, "high": 355, "low": 0, "low_low": -1, "unit": "A", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" }, "power_mw": { "high_high": 4.9, "high": 4.1, "low": 0, "low_low": -1, "unit": "MW", "priority_high_high": "CRITICAL", "priority_high": "HIGH", "priority_low": "LOW", "priority_low_low": "LOW" }, "power_factor": { "high_high": 1.05, "high": 1.01, "low": 0.81, "low_low": 0.71, "unit": "", "priority_high_high": "LOW", "priority_high": "LOW", "priority_low": "MEDIUM", "priority_low_low": "HIGH" }, "frequency": { "high_high": 51.0, "high": 50.5, "low": 49.5, "low_low": 49.0, "unit": "Hz", "priority_high_high": "HIGH", "priority_high": "MEDIUM", "priority_low": "MEDIUM", "priority_low_low": "HIGH" } }, "load_nodes": [] }
+        {
+          "id": "F-SS03-F1",
+          "name": "Feeder 1 — Whitefield Main",
+          "short_name": "F1",
+          "slave_id": 15,
+          "feeder_number": 1,
+          "load_type": "MIXED",
+          "estimated_consumers": 8200,
+          "connected_load_kw": 7800,
+          "cable_length_km": 5.5,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 40, "max": 390 },
+            "power_mw": { "min": 0.4, "max": 4.5 },
+            "power_factor": { "min": 0.82, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 470,
+              "high": 390,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 5.4,
+              "high": 4.5,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.82,
+              "low_low": 0.72,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS03-F2",
+          "name": "Feeder 2 — ITPL Tech Park",
+          "short_name": "F2",
+          "slave_id": 16,
+          "feeder_number": 2,
+          "load_type": "INDUSTRIAL",
+          "estimated_consumers": 85,
+          "connected_load_kw": 9200,
+          "cable_length_km": 3.2,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 80, "max": 460 },
+            "power_mw": { "min": 1.0, "max": 5.3 },
+            "power_factor": { "min": 0.85, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 550,
+              "high": 460,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 6.4,
+              "high": 5.3,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.85,
+              "low_low": 0.75,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS03-F3",
+          "name": "Feeder 3 — Varthur Road",
+          "short_name": "F3",
+          "slave_id": 17,
+          "feeder_number": 3,
+          "load_type": "RESIDENTIAL",
+          "estimated_consumers": 6100,
+          "connected_load_kw": 5600,
+          "cable_length_km": 6.4,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 30, "max": 280 },
+            "power_mw": { "min": 0.3, "max": 3.3 },
+            "power_factor": { "min": 0.8, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 340,
+              "high": 280,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 4.0,
+              "high": 3.3,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.8,
+              "low_low": 0.7,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS03-F4",
+          "name": "Feeder 4 — Brookefield",
+          "short_name": "F4",
+          "slave_id": 18,
+          "feeder_number": 4,
+          "load_type": "MIXED",
+          "estimated_consumers": 5400,
+          "connected_load_kw": 5100,
+          "cable_length_km": 4.8,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 25, "max": 255 },
+            "power_mw": { "min": 0.3, "max": 3.0 },
+            "power_factor": { "min": 0.82, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 310,
+              "high": 255,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 3.6,
+              "high": 3.0,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.82,
+              "low_low": 0.72,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS03-F5",
+          "name": "Feeder 5 — Mahadevapura",
+          "short_name": "F5",
+          "slave_id": 19,
+          "feeder_number": 5,
+          "load_type": "MIXED",
+          "estimated_consumers": 7600,
+          "connected_load_kw": 7100,
+          "cable_length_km": 5.9,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 35, "max": 355 },
+            "power_mw": { "min": 0.4, "max": 4.1 },
+            "power_factor": { "min": 0.81, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 430,
+              "high": 355,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 4.9,
+              "high": 4.1,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.81,
+              "low_low": 0.71,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS03-F6",
+          "name": "Feeder 6 — Kadugodi",
+          "short_name": "F6",
+          "slave_id": 20,
+          "feeder_number": 6,
+          "load_type": "MIXED",
+          "estimated_consumers": 4100,
+          "connected_load_kw": 5440,
+          "cable_length_km": 6.2,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 20, "max": 286 },
+            "power_mw": { "min": 0.3, "max": 3.4 },
+            "power_factor": { "min": 0.82, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 354,
+              "high": 286,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 4.1,
+              "high": 3.4,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.8,
+              "low_low": 0.7,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS03-F7",
+          "name": "Feeder 7 — Hoodi Industrial",
+          "short_name": "F7",
+          "slave_id": 21,
+          "feeder_number": 7,
+          "load_type": "INDUSTRIAL",
+          "estimated_consumers": 380,
+          "connected_load_kw": 7360,
+          "cable_length_km": 4.8,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 72, "max": 417 },
+            "power_mw": { "min": 0.7, "max": 4.6 },
+            "power_factor": { "min": 0.78, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 503,
+              "high": 417,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 5.7,
+              "high": 4.6,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.78,
+              "low_low": 0.68,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        }
+      ]
+    },
+    {
+      "id": "SS-04",
+      "name": "Hebbal 33/11kV Substation",
+      "short_name": "HBL",
+      "location": "Hebbal, Bengaluru North",
+      "latitude": 13.0358,
+      "longitude": 77.597,
+      "voltage_level": "33/11kV",
+      "is_feeder_map_substation": false,
+      "transformer": {
+        "id": "TR-SS04-T1",
+        "name": "T1 — 16MVA 33/11kV",
+        "slave_id": 22,
+        "rating_mva": 16,
+        "hv_kv": 33,
+        "lv_kv": 11,
+        "normal_operating": {
+          "hv_voltage_kv": { "min": 31.0, "max": 35.0 },
+          "lv_voltage_kv": { "min": 10.5, "max": 11.5 },
+          "current_a": { "min": 0, "max": 840 },
+          "power_mw": { "min": 0, "max": 16.0 },
+          "temperature_degc": { "min": 20, "max": 85 },
+          "frequency_hz": { "min": 49.5, "max": 50.5 }
+        },
+        "analog_limits": {
+          "voltage": {
+            "high_high": 11.8,
+            "high": 11.5,
+            "low": 10.5,
+            "low_low": 10.0,
+            "unit": "kV",
+            "priority_high_high": "CRITICAL",
+            "priority_high": "HIGH",
+            "priority_low": "HIGH",
+            "priority_low_low": "CRITICAL"
+          },
+          "current": {
+            "high_high": 920,
+            "high": 840,
+            "low": 0,
+            "low_low": -1,
+            "unit": "A",
+            "priority_high_high": "CRITICAL",
+            "priority_high": "HIGH",
+            "priority_low": "LOW",
+            "priority_low_low": "LOW"
+          },
+          "power_mw": {
+            "high_high": 18.0,
+            "high": 16.0,
+            "low": 0,
+            "low_low": -1,
+            "unit": "MW",
+            "priority_high_high": "CRITICAL",
+            "priority_high": "HIGH",
+            "priority_low": "LOW",
+            "priority_low_low": "LOW"
+          },
+          "temperature": {
+            "high_high": 100,
+            "high": 85,
+            "low": 0,
+            "low_low": -1,
+            "unit": "degC",
+            "priority_high_high": "CRITICAL",
+            "priority_high": "HIGH",
+            "priority_low": "LOW",
+            "priority_low_low": "LOW"
+          },
+          "frequency": {
+            "high_high": 51.0,
+            "high": 50.5,
+            "low": 49.5,
+            "low_low": 49.0,
+            "unit": "Hz",
+            "priority_high_high": "HIGH",
+            "priority_high": "MEDIUM",
+            "priority_low": "MEDIUM",
+            "priority_low_low": "HIGH"
+          }
+        }
+      },
+      "feeders": [
+        {
+          "id": "F-SS04-F1",
+          "name": "Feeder 1 — Kempapura",
+          "short_name": "F1",
+          "slave_id": 23,
+          "feeder_number": 1,
+          "load_type": "RESIDENTIAL",
+          "estimated_consumers": 4300,
+          "connected_load_kw": 3840,
+          "cable_length_km": 3.6,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 12, "max": 216 },
+            "power_mw": { "min": 0.1, "max": 2.4 },
+            "power_factor": { "min": 0.8, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 264,
+              "high": 216,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 2.9,
+              "high": 2.4,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.8,
+              "low_low": 0.7,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS04-F2",
+          "name": "Feeder 2 — RT Nagar",
+          "short_name": "F2",
+          "slave_id": 24,
+          "feeder_number": 2,
+          "load_type": "RESIDENTIAL",
+          "estimated_consumers": 5100,
+          "connected_load_kw": 4320,
+          "cable_length_km": 4.2,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 14, "max": 243 },
+            "power_mw": { "min": 0.1, "max": 2.7 },
+            "power_factor": { "min": 0.8, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 297,
+              "high": 243,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 3.2,
+              "high": 2.7,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.8,
+              "low_low": 0.7,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS04-F3",
+          "name": "Feeder 3 — Manyata Tech Park",
+          "short_name": "F3",
+          "slave_id": 25,
+          "feeder_number": 3,
+          "load_type": "COMMERCIAL",
+          "estimated_consumers": 160,
+          "connected_load_kw": 6720,
+          "cable_length_km": 2.9,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 38, "max": 363 },
+            "power_mw": { "min": 0.4, "max": 4.2 },
+            "power_factor": { "min": 0.85, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 458,
+              "high": 363,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 5.3,
+              "high": 4.2,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.82,
+              "low_low": 0.72,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS04-F4",
+          "name": "Feeder 4 — Sahakara Nagar",
+          "short_name": "F4",
+          "slave_id": 26,
+          "feeder_number": 4,
+          "load_type": "RESIDENTIAL",
+          "estimated_consumers": 3900,
+          "connected_load_kw": 3680,
+          "cable_length_km": 5.1,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 12, "max": 207 },
+            "power_mw": { "min": 0.1, "max": 2.3 },
+            "power_factor": { "min": 0.8, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 253,
+              "high": 207,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 2.8,
+              "high": 2.3,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.8,
+              "low_low": 0.7,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS04-F5",
+          "name": "Feeder 5 — Yelahanka New Town",
+          "short_name": "F5",
+          "slave_id": 27,
+          "feeder_number": 5,
+          "load_type": "MIXED",
+          "estimated_consumers": 3600,
+          "connected_load_kw": 4960,
+          "cable_length_km": 7.4,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 19, "max": 260 },
+            "power_mw": { "min": 0.2, "max": 3.1 },
+            "power_factor": { "min": 0.82, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 322,
+              "high": 260,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 3.7,
+              "high": 3.1,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.8,
+              "low_low": 0.7,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS04-F6",
+          "name": "Feeder 6 — Hebbal Lake Road",
+          "short_name": "F6",
+          "slave_id": 28,
+          "feeder_number": 6,
+          "load_type": "MIXED",
+          "estimated_consumers": 2100,
+          "connected_load_kw": 3520,
+          "cable_length_km": 3.3,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 13, "max": 185 },
+            "power_mw": { "min": 0.2, "max": 2.2 },
+            "power_factor": { "min": 0.82, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 229,
+              "high": 185,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 2.6,
+              "high": 2.2,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.8,
+              "low_low": 0.7,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS04-F7",
+          "name": "Feeder 7 — Bellary Road",
+          "short_name": "F7",
+          "slave_id": 29,
+          "feeder_number": 7,
+          "load_type": "COMMERCIAL",
+          "estimated_consumers": 640,
+          "connected_load_kw": 4640,
+          "cable_length_km": 4.0,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 26, "max": 250 },
+            "power_mw": { "min": 0.3, "max": 2.9 },
+            "power_factor": { "min": 0.85, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 316,
+              "high": 250,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 3.7,
+              "high": 2.9,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.82,
+              "low_low": 0.72,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS04-F8",
+          "name": "Feeder 8 — Nagawara",
+          "short_name": "F8",
+          "slave_id": 30,
+          "feeder_number": 8,
+          "load_type": "MIXED",
+          "estimated_consumers": 3000,
+          "connected_load_kw": 4160,
+          "cable_length_km": 4.6,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 16, "max": 218 },
+            "power_mw": { "min": 0.2, "max": 2.6 },
+            "power_factor": { "min": 0.82, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 270,
+              "high": 218,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 3.1,
+              "high": 2.6,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.8,
+              "low_low": 0.7,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        }
+      ]
+    },
+    {
+      "id": "SS-05",
+      "name": "Electronic City 33/11kV Substation",
+      "short_name": "ECY",
+      "location": "Electronic City, Bengaluru South",
+      "latitude": 12.8452,
+      "longitude": 77.6602,
+      "voltage_level": "33/11kV",
+      "is_feeder_map_substation": false,
+      "transformer": {
+        "id": "TR-SS05-T1",
+        "name": "T1 — 20MVA 33/11kV",
+        "slave_id": 31,
+        "rating_mva": 20,
+        "hv_kv": 33,
+        "lv_kv": 11,
+        "normal_operating": {
+          "hv_voltage_kv": { "min": 31.0, "max": 35.0 },
+          "lv_voltage_kv": { "min": 10.5, "max": 11.5 },
+          "current_a": { "min": 0, "max": 1050 },
+          "power_mw": { "min": 0, "max": 20.0 },
+          "temperature_degc": { "min": 20, "max": 85 },
+          "frequency_hz": { "min": 49.5, "max": 50.5 }
+        },
+        "analog_limits": {
+          "voltage": {
+            "high_high": 11.8,
+            "high": 11.5,
+            "low": 10.5,
+            "low_low": 10.0,
+            "unit": "kV",
+            "priority_high_high": "CRITICAL",
+            "priority_high": "HIGH",
+            "priority_low": "HIGH",
+            "priority_low_low": "CRITICAL"
+          },
+          "current": {
+            "high_high": 1150,
+            "high": 1050,
+            "low": 0,
+            "low_low": -1,
+            "unit": "A",
+            "priority_high_high": "CRITICAL",
+            "priority_high": "HIGH",
+            "priority_low": "LOW",
+            "priority_low_low": "LOW"
+          },
+          "power_mw": {
+            "high_high": 22.5,
+            "high": 20.0,
+            "low": 0,
+            "low_low": -1,
+            "unit": "MW",
+            "priority_high_high": "CRITICAL",
+            "priority_high": "HIGH",
+            "priority_low": "LOW",
+            "priority_low_low": "LOW"
+          },
+          "temperature": {
+            "high_high": 100,
+            "high": 85,
+            "low": 0,
+            "low_low": -1,
+            "unit": "degC",
+            "priority_high_high": "CRITICAL",
+            "priority_high": "HIGH",
+            "priority_low": "LOW",
+            "priority_low_low": "LOW"
+          },
+          "frequency": {
+            "high_high": 51.0,
+            "high": 50.5,
+            "low": 49.5,
+            "low_low": 49.0,
+            "unit": "Hz",
+            "priority_high_high": "HIGH",
+            "priority_high": "MEDIUM",
+            "priority_low": "MEDIUM",
+            "priority_low_low": "HIGH"
+          }
+        }
+      },
+      "feeders": [
+        {
+          "id": "F-SS05-F1",
+          "name": "Feeder 1 — Electronic City Phase 1",
+          "short_name": "F1",
+          "slave_id": 32,
+          "feeder_number": 1,
+          "load_type": "INDUSTRIAL",
+          "estimated_consumers": 210,
+          "connected_load_kw": 7040,
+          "cable_length_km": 3.2,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 69, "max": 399 },
+            "power_mw": { "min": 0.7, "max": 4.4 },
+            "power_factor": { "min": 0.78, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 481,
+              "high": 399,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 5.5,
+              "high": 4.4,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.78,
+              "low_low": 0.68,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS05-F2",
+          "name": "Feeder 2 — Electronic City Phase 2",
+          "short_name": "F2",
+          "slave_id": 33,
+          "feeder_number": 2,
+          "load_type": "INDUSTRIAL",
+          "estimated_consumers": 180,
+          "connected_load_kw": 6400,
+          "cable_length_km": 4.1,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 62, "max": 362 },
+            "power_mw": { "min": 0.6, "max": 4.0 },
+            "power_factor": { "min": 0.78, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 438,
+              "high": 362,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 5.0,
+              "high": 4.0,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.78,
+              "low_low": 0.68,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS05-F3",
+          "name": "Feeder 3 — Hosur Road",
+          "short_name": "F3",
+          "slave_id": 34,
+          "feeder_number": 3,
+          "load_type": "COMMERCIAL",
+          "estimated_consumers": 720,
+          "connected_load_kw": 4800,
+          "cable_length_km": 5.5,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 27, "max": 259 },
+            "power_mw": { "min": 0.3, "max": 3.0 },
+            "power_factor": { "min": 0.85, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 327,
+              "high": 259,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 3.8,
+              "high": 3.0,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.82,
+              "low_low": 0.72,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS05-F4",
+          "name": "Feeder 4 — Bommasandra Industrial",
+          "short_name": "F4",
+          "slave_id": 35,
+          "feeder_number": 4,
+          "load_type": "INDUSTRIAL",
+          "estimated_consumers": 260,
+          "connected_load_kw": 7680,
+          "cable_length_km": 6.8,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 75, "max": 435 },
+            "power_mw": { "min": 0.7, "max": 4.8 },
+            "power_factor": { "min": 0.78, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 525,
+              "high": 435,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 6.0,
+              "high": 4.8,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.78,
+              "low_low": 0.68,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS05-F5",
+          "name": "Feeder 5 — Hebbagodi",
+          "short_name": "F5",
+          "slave_id": 36,
+          "feeder_number": 5,
+          "load_type": "RESIDENTIAL",
+          "estimated_consumers": 3700,
+          "connected_load_kw": 3520,
+          "cable_length_km": 5.9,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 11, "max": 198 },
+            "power_mw": { "min": 0.1, "max": 2.2 },
+            "power_factor": { "min": 0.8, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 242,
+              "high": 198,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 2.6,
+              "high": 2.2,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.8,
+              "low_low": 0.7,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS05-F6",
+          "name": "Feeder 6 — Doddathogur",
+          "short_name": "F6",
+          "slave_id": 37,
+          "feeder_number": 6,
+          "load_type": "RESIDENTIAL",
+          "estimated_consumers": 3300,
+          "connected_load_kw": 3200,
+          "cable_length_km": 3.7,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 10, "max": 180 },
+            "power_mw": { "min": 0.1, "max": 2.0 },
+            "power_factor": { "min": 0.8, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 220,
+              "high": 180,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 2.4,
+              "high": 2.0,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.8,
+              "low_low": 0.7,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS05-F7",
+          "name": "Feeder 7 — Neeladri Nagar",
+          "short_name": "F7",
+          "slave_id": 38,
+          "feeder_number": 7,
+          "load_type": "RESIDENTIAL",
+          "estimated_consumers": 2900,
+          "connected_load_kw": 2880,
+          "cable_length_km": 2.8,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 9, "max": 162 },
+            "power_mw": { "min": 0.1, "max": 1.8 },
+            "power_factor": { "min": 0.8, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 198,
+              "high": 162,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 2.2,
+              "high": 1.8,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.8,
+              "low_low": 0.7,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS05-F8",
+          "name": "Feeder 8 — Konappana Agrahara",
+          "short_name": "F8",
+          "slave_id": 39,
+          "feeder_number": 8,
+          "load_type": "MIXED",
+          "estimated_consumers": 2600,
+          "connected_load_kw": 4000,
+          "cable_length_km": 4.4,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 15, "max": 210 },
+            "power_mw": { "min": 0.2, "max": 2.5 },
+            "power_factor": { "min": 0.82, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 260,
+              "high": 210,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 3.0,
+              "high": 2.5,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.8,
+              "low_low": 0.7,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS05-F9",
+          "name": "Feeder 9 — Singasandra",
+          "short_name": "F9",
+          "slave_id": 40,
+          "feeder_number": 9,
+          "load_type": "MIXED",
+          "estimated_consumers": 2800,
+          "connected_load_kw": 3840,
+          "cable_length_km": 5.0,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 14, "max": 202 },
+            "power_mw": { "min": 0.2, "max": 2.4 },
+            "power_factor": { "min": 0.82, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 250,
+              "high": 202,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 2.9,
+              "high": 2.4,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.8,
+              "low_low": 0.7,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        },
+        {
+          "id": "F-SS05-F10",
+          "name": "Feeder 10 — Huskur Road",
+          "short_name": "F10",
+          "slave_id": 41,
+          "feeder_number": 10,
+          "load_type": "MIXED",
+          "estimated_consumers": 1700,
+          "connected_load_kw": 3360,
+          "cable_length_km": 6.3,
+          "normal_operating": {
+            "voltage_kv": { "min": 10.5, "max": 11.5 },
+            "current_a": { "min": 13, "max": 176 },
+            "power_mw": { "min": 0.2, "max": 2.1 },
+            "power_factor": { "min": 0.82, "max": 1.0 },
+            "frequency_hz": { "min": 49.5, "max": 50.5 }
+          },
+          "analog_limits": {
+            "voltage": {
+              "high_high": 11.8,
+              "high": 11.5,
+              "low": 10.5,
+              "low_low": 10.0,
+              "unit": "kV",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "HIGH",
+              "priority_low_low": "CRITICAL"
+            },
+            "current": {
+              "high_high": 218,
+              "high": 176,
+              "low": 0,
+              "low_low": -1,
+              "unit": "A",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_mw": {
+              "high_high": 2.5,
+              "high": 2.1,
+              "low": 0,
+              "low_low": -1,
+              "unit": "MW",
+              "priority_high_high": "CRITICAL",
+              "priority_high": "HIGH",
+              "priority_low": "LOW",
+              "priority_low_low": "LOW"
+            },
+            "power_factor": {
+              "high_high": 1.05,
+              "high": 1.01,
+              "low": 0.8,
+              "low_low": 0.7,
+              "unit": "",
+              "priority_high_high": "LOW",
+              "priority_high": "LOW",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            },
+            "frequency": {
+              "high_high": 51.0,
+              "high": 50.5,
+              "low": 49.5,
+              "low_low": 49.0,
+              "unit": "Hz",
+              "priority_high_high": "HIGH",
+              "priority_high": "MEDIUM",
+              "priority_low": "MEDIUM",
+              "priority_low_low": "HIGH"
+            }
+          },
+          "load_nodes": []
+        }
       ]
     }
   ]

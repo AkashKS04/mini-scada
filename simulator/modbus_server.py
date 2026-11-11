@@ -22,6 +22,7 @@ Failure Injection (automatic, random):
 """
 
 import os
+import sys
 import json
 import time
 import math
@@ -56,6 +57,15 @@ REG_FREQUENCY    = 6    # 40006
 REG_BREAKER      = 100  # 40100
 
 REGISTER_COUNT   = 110  # allocate enough registers
+
+# Normal load never exceeds this fraction of the HIGH limit, so alarms come
+# from real events (spikes, faults) and not from ordinary peak demand
+LOAD_CEILING     = 0.88
+
+# Seconds between injected failures. Each feeder trip is a CRITICAL alarm an
+# operator must ACK and clear, so this keeps it to roughly 35 trips a day.
+# Lower it (e.g. (60, 120)) for a busy demo.
+FAILURE_GAP      = (300, 600)
 
 # Breaker states
 BREAKER_OPEN    = 0
@@ -107,6 +117,9 @@ for ss in CONFIG['substations']:
         }
 
 print(f"[CONFIG] Loaded {len(device_registry)} devices from substations.json")
+
+# {substation_id: transformer slave_id}, used to work out if a feeder has supply
+transformer_of = {ss["id"]: ss["transformer"]["slave_id"] for ss in CONFIG["substations"]}
 
 # ─────────────────────────────────────────────
 # Build one ModbusSlaveContext per device
@@ -172,7 +185,7 @@ def generate_feeder_values(device):
     """Generate realistic feeder analog values."""
     normal  = device['normal']
     ltype   = device.get('load_type', 'MIXED')
-    factor  = load_type_factor(ltype)
+    factor  = min(load_type_factor(ltype), LOAD_CEILING)
 
     v_min, v_max = normal['voltage_kv']['min'], normal['voltage_kv']['max']
     i_min, i_max = normal['current_a']['min'],  normal['current_a']['max']
@@ -187,7 +200,7 @@ def generate_feeder_values(device):
     power_factor= pf_min + (pf_max - pf_min) * random.uniform(0.8, 1.0)
     frequency   = 50.0 + random.uniform(-0.1, 0.1)
 
-    # Occasional anomalies (~3% chance)
+    # Occasional anomalies (0.1% chance each, per 2 s update)
     if random.random() < 0.001:
         voltage += random.uniform(0.4, 0.8)   # voltage surge
     if random.random() < 0.001:
@@ -217,7 +230,7 @@ def generate_transformer_values(device):
     t_min  = normal['temperature_degc']['min']
     t_max  = normal['temperature_degc']['max']
 
-    factor = get_time_factor()
+    factor = min(get_time_factor(), LOAD_CEILING)
 
     voltage     = lv_min + (lv_max - lv_min) * (0.5 + random.uniform(-0.1, 0.1))
     current     = i_min  + (i_max - i_min)   * factor + random.uniform(-10, 10)
@@ -254,6 +267,42 @@ def to_reg(value, scale):
 
 
 # ─────────────────────────────────────────────
+# Breaker control (called by the DNP3 outstation)
+# ─────────────────────────────────────────────
+def apply_breaker_command(slave_id, command):
+    """
+    Execute an OPEN or CLOSE command on a breaker.
+    Returns (ok, message). Never raises: the caller reports the message
+    back to the master.
+    """
+    device = device_registry.get(slave_id)
+    if not device:
+        return False, "unknown device"
+
+    with failure_lock:
+        if slave_id in offline_devices:
+            return False, "device offline"
+
+    store = device_contexts[slave_id]
+    state = store.getValues(3, REG_BREAKER, count=1)[0]
+
+    if command == "OPEN":
+        if state == BREAKER_OPEN:
+            return False, "already open"
+        new_state = BREAKER_OPEN
+    elif command == "CLOSE":
+        if state == BREAKER_CLOSED:
+            return False, "already closed"
+        new_state = BREAKER_CLOSED
+    else:
+        return False, "unsupported command"
+
+    store.setValues(3, REG_BREAKER, [new_state])
+    print(f"\n[CONTROL] Slave {slave_id} ({device['name']}) breaker -> {command}\n")
+    return True, "executed"
+
+
+# ─────────────────────────────────────────────
 # Device simulation thread
 # ─────────────────────────────────────────────
 def simulate_device(slave_id, device):
@@ -280,6 +329,19 @@ def simulate_device(slave_id, device):
             vals = generate_transformer_values(device)
         else:
             vals = generate_feeder_values(device)
+
+        # Values follow breaker state. An open feeder breaker carries no
+        # current or power; an open transformer breaker kills the whole bus.
+        own_state = store.getValues(3, REG_BREAKER, count=1)[0]
+        tr_state  = device_contexts[transformer_of[device['substation']]] \
+                        .getValues(3, REG_BREAKER, count=1)[0]
+        bus_dead  = tr_state != BREAKER_CLOSED
+        if bus_dead:
+            vals['voltage'] = 0.0
+        if bus_dead or own_state != BREAKER_CLOSED:
+            vals['current']      = 0.0
+            vals['power_mw']     = 0.0
+            vals['power_factor'] = 1.0
 
         # Apply freeze overrides
         voltage     = frozen.get(REG_VOLTAGE,      to_reg(vals['voltage'],      100))
@@ -416,8 +478,7 @@ def failure_injector():
             print(f"\n[FAILURE] ✓  Slave {slave_id} ({name}) → BREAKER AUTO-RECLOSED\n")
 
         # Wait before next failure
-        wait = random.randint(60, 120)
-        time.sleep(wait)
+        time.sleep(random.randint(*FAILURE_GAP))
 
 
 # ─────────────────────────────────────────────
@@ -436,6 +497,12 @@ async def main():
     # Start failure injector
     fi = threading.Thread(target=failure_injector, daemon=True)
     fi.start()
+
+    # DNP3 outstation: the control path for breaker OPEN / CLOSE
+    sys.path.insert(0, os.path.join(BASE_DIR, 'lib'))
+    import dnp3lite
+    _, by_point = dnp3lite.point_maps(CONFIG)
+    dnp3lite.Outstation(by_point, apply_breaker_command).start()
 
     print("\n" + "="*60)
     print(" Phase 4 SCADA RTU Simulator")

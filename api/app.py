@@ -15,6 +15,8 @@ Endpoints
     GET  /api/alarms/history            CLEARED alarms
     POST /api/alarms/<id>/ack           acknowledge an alarm
     POST /api/alarms/<id>/clear         clear (delete) an alarm
+    POST /api/alarms/clear-rtn          ack + clear every returned-to-normal alarm
+                                        ?substation=SS-01 limits it to one station
     GET  /api/soe                       Sequence of Events log
     GET  /api/trends                    historian data  ?slave_id=2&hours=1
     POST /api/control/breaker           queue a breaker OPEN/CLOSE command
@@ -142,13 +144,8 @@ def get_operator():
 # Live data builders
 # ─────────────────────────────────────────────
 def latest_values():
-    """{slave_id: {parameter: {value, timestamp}}} - newest reading of each."""
-    rows = query("""
-        SELECT r.slave_id, r.parameter, r.value, r.timestamp
-        FROM readings r
-        JOIN (SELECT MAX(id) AS mid FROM readings
-              GROUP BY slave_id, parameter) m ON r.id = m.mid
-    """)
+    """{slave_id: {parameter: {value, timestamp}}} from the real-time table."""
+    rows = query("SELECT slave_id, parameter, value, timestamp FROM current_values")
     out = {}
     for r in rows:
         out.setdefault(r['slave_id'], {})[r['parameter']] = {
@@ -286,13 +283,13 @@ def index():
 @app.route('/api/health')
 def api_health():
     try:
-        last = query("SELECT id, timestamp FROM readings ORDER BY id DESC LIMIT 1")
+        last = query("SELECT MAX(timestamp) AS timestamp FROM current_values")
         open_n = query("SELECT COUNT(*) AS n FROM alarms "
                        "WHERE status IN ('ACTIVE','ACKNOWLEDGED')")[0]['n']
         return jsonify({
             'status':             'ok',
             'devices_configured': len(DEVICES),
-            'last_reading':       last[0]['timestamp'] if last else None,
+            'last_reading':       last[0]['timestamp'],
             'open_alarms':        open_n,
         })
     except sqlite3.Error as e:
@@ -527,6 +524,54 @@ def api_clear(alarm_id):
             'ALARM_CLEARED', a['parameter'], a['status'], 'CLEARED',
             f"Alarm #{alarm_id} cleared by operator", operator)
     return jsonify({'status': 'ok', 'alarm_id': alarm_id, 'cleared_by': operator})
+
+
+@app.route('/api/alarms/clear-rtn', methods=['POST'])
+def api_clear_rtn():
+    """
+    Bulk housekeeping: acknowledge and clear alarms whose condition has
+    already gone away. Anything still in breach (rtn_timestamp NULL) is left
+    alone. Each UPDATE re-checks rtn_timestamp, so an alarm the client
+    re-opens at the same moment is not cleared by mistake.
+    """
+    operator = get_operator()
+    ss_id    = request.args.get('substation')
+    ts, ms   = now_ts(), now_ms()
+
+    sql = ("SELECT * FROM alarms WHERE status IN ('ACTIVE', 'ACKNOWLEDGED') "
+           "AND rtn_timestamp IS NOT NULL")
+    args = []
+    if ss_id:
+        sql += " AND substation_id = ?"
+        args.append(ss_id)
+
+    conn = get_db()
+    cleared = []
+    try:
+        for a in conn.execute(sql, args).fetchall():
+            cur = conn.execute("""
+                UPDATE alarms SET status='CLEARED', cleared_timestamp=?,
+                       ack_timestamp=COALESCE(ack_timestamp, ?),
+                       ack_by=COALESCE(ack_by, ?)
+                WHERE id=? AND status IN ('ACTIVE', 'ACKNOWLEDGED')
+                  AND rtn_timestamp IS NOT NULL
+            """, (ts, ts, operator, a['id']))
+            if cur.rowcount:
+                cleared.append(a['id'])
+                conn.execute("""
+                    INSERT INTO soe_log
+                    (timestamp_ms, substation_id, device_id, device_name, event_type,
+                     parameter, old_value, new_value, message, operator)
+                    VALUES (?, ?, ?, ?, 'ALARM_CLEARED', ?, ?, 'CLEARED', ?, ?)
+                """, (ms, a['substation_id'], a['device_id'], a['device_name'],
+                      a['parameter'], a['status'],
+                      f"Alarm #{a['id']} cleared (bulk, returned to normal)", operator))
+        conn.commit()
+    finally:
+        conn.close()
+
+    return jsonify({'status': 'ok', 'cleared': len(cleared), 'alarm_ids': cleared,
+                    'cleared_by': operator})
 
 
 # ─────────────────────────────────────────────

@@ -7,20 +7,20 @@ Requires=scada-server.service
 
 [Service]
 # Where your project lives
-WorkingDirectory=/home/akash/mini-scada
+WorkingDirectory=/home/akash/mini-scada/engine
 
 # What to run
-ExecStart=/usr/bin/python3 /home/akash/mini-scada/modbus_client.py
+ExecStart=/usr/bin/python3 /home/akash/mini-scada/engine/modbus_client.py
 
 # Restart automatically if it crashes
 Restart=always
 
 # Wait 5 seconds before restarting
 # Gives scada-server time to fully start before client reconnects
-RestartSec=5
+RestartSec=8
 
 # Run as your user, never as root
-User=akash
+User=scada
 
 # Log stdout and stderr to journald
 StandardOutput=journal

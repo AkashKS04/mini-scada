@@ -1,0 +1,18 @@
+[Unit]
+Description=SCADA DNP3 Control Layer (breaker commands)
+Documentation=https://github.com/AkashKS04/mini-scada
+After=scada-server.service scada-client.service
+Requires=scada-server.service scada-client.service
+
+[Service]
+WorkingDirectory=/home/akash/mini-scada/engine
+ExecStart=/usr/bin/python3 /home/akash/mini-scada/engine/dnp3_controller.py
+Restart=always
+RestartSec=5
+User=scada
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=scada-control
+
+[Install]
+WantedBy=multi-user.target

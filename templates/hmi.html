@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mini SCADA - Station HMI</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--line:#30363d;--text:#e6edf3;--mute:#8b949e;
+--blue:#58a6ff;--green:#3fb950;--red:#f85149;--orange:#f0883e;--yellow:#e3b341}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px}
+header{background:var(--panel);border-bottom:1px solid var(--line);padding:12px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+h1{font-size:1.15rem;color:var(--blue)}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{50%{opacity:.35}}
+.grow{margin-left:auto;display:flex;align-items:center;gap:12px;color:var(--mute);font-size:.8rem}
+input,select{background:var(--bg);border:1px solid var(--line);color:var(--text);padding:5px 8px;border-radius:6px;font-size:.82rem}
+input{width:110px}
+#err{background:#3d1f1f;color:var(--red);padding:8px 24px;border-bottom:1px solid var(--red)}
+main{padding:18px 24px;display:grid;gap:22px}
+h2{font-size:.78rem;color:var(--mute);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+.chip{display:inline-block;padding:2px 9px;border-radius:12px;font-size:.72rem;font-weight:700;border:1px solid}
+.chip.CRITICAL{color:var(--red);border-color:var(--red);background:#3d1f1f}
+.chip.HIGH{color:var(--orange);border-color:var(--orange);background:#3a2410}
+.chip.MEDIUM{color:var(--yellow);border-color:var(--yellow);background:#3d2e0a}
+.chip.LOW{color:var(--blue);border-color:var(--blue);background:#14263b}
+.chip.UNACK{color:#fff;border-color:var(--red);background:var(--red)}
+.chip.zero{opacity:.35}
+#summary{display:flex;gap:8px;flex-wrap:wrap}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.tile{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--green);border-radius:8px;padding:14px;cursor:pointer}
+.tile.warn{border-left-color:var(--orange)}
+.tile.bad{border-left-color:var(--red)}
+.tile.sel{outline:2px solid var(--blue)}
+.tn{font-size:1.05rem;font-weight:700}.tn span{color:var(--mute);font-size:.75rem;font-weight:400;margin-left:6px}
+.tl{color:var(--mute);font-size:.8rem;margin-top:2px}
+.chips{display:flex;gap:6px;margin:10px 0 6px}
+.tm{font-size:.76rem;color:var(--mute)}
+.scroll{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+table{width:100%;border-collapse:collapse;font-size:.84rem}
+th,td{padding:8px 12px;border-bottom:1px solid #21262d;text-align:left;white-space:nowrap}
+th{color:var(--mute);font-weight:600;font-size:.74rem;text-transform:uppercase}
+td.num{font-variant-numeric:tabular-nums}
+td.msg{white-space:normal;min-width:240px}
+.sub{color:var(--mute);font-size:.72rem}
+.v-CRITICAL{color:var(--red);font-weight:700}.v-HIGH{color:var(--orange);font-weight:700}
+.v-MEDIUM{color:var(--yellow)}.v-LOW{color:var(--blue)}
+.bk,.q,.live,.dead{font-size:.72rem;font-weight:700;padding:1px 8px;border-radius:10px}
+.bk.CLOSED,.q.GOOD,.live{color:var(--green);background:#12261a}
+.bk.OPEN{color:var(--mute);background:#21262d}
+.bk.TRIPPED,.q.BAD,.dead{color:var(--red);background:#3d1f1f}
+.bk.UNKNOWN,.q.SUSPECT{color:var(--yellow);background:#3d2e0a}
+tr.hot td:first-child{box-shadow:inset 3px 0 var(--red);animation:pulse 1.4s infinite}
+.st{font-size:.74rem;font-weight:700}
+.st.ACTIVE_UNACK{color:var(--red)}.st.ACTIVE_ACK{color:var(--orange)}
+.st.RTN_UNACK{color:var(--yellow)}.st.RTN_ACK{color:var(--green)}
+button{background:transparent;border:1px solid var(--line);color:var(--text);padding:3px 11px;border-radius:6px;cursor:pointer;font-size:.76rem;margin-right:4px}
+button:hover:not(:disabled){background:#21262d;border-color:var(--blue)}
+button:disabled{opacity:.3;cursor:not-allowed}
+.empty{padding:18px;color:var(--mute)}
+.bar{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.bar h2{margin:0}
+.sld{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow-x:auto}
+.sld svg{display:block;width:100%;min-width:760px;height:auto}
+.sld text{fill:var(--text);font-family:inherit}
+.sld .vt{font-size:12px}
+.sld .nm{font-size:12px;font-weight:700}
+.sld .mu{font-size:11px;fill:var(--mute)}
+.sld .v-CRITICAL{fill:var(--red);font-weight:700}.sld .v-HIGH{fill:var(--orange);font-weight:700}
+.sld .v-MEDIUM{fill:var(--yellow)}.sld .v-LOW{fill:var(--blue)}
+.flow{animation:flow 1.2s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-14}}
+.brk{cursor:pointer}.brk:hover{stroke:#fff}
+.brk.trip{animation:pulse 1s infinite}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;z-index:10}
+#modal[hidden]{display:none}
+.mbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:22px;width:340px}
+.mbox h3{margin-bottom:10px;font-size:1rem}
+.mrow{display:flex;gap:10px;margin:16px 0 10px}
+.mrow button{flex:1;padding:9px}
+button.armed{background:var(--red);border-color:var(--red);color:#fff}
+#m-msg{min-height:34px;font-size:.8rem;color:var(--mute);margin-bottom:8px}
+</style>
+</head>
+<body>
+<header>
+  <div class="dot"></div>
+  <h1>Mini SCADA - 11kV Distribution Network</h1>
+  <div id="summary"></div>
+  <div class="grow">
+    <label>Operator <input id="op" value="operator" maxlength="20"></label>
+    <span id="upd">connecting...</span>
+  </div>
+</header>
+<div id="err" hidden></div>
+
+<main>
+  <section>
+    <h2>Substations</h2>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section>
+    <h2 id="sldtitle">Single line diagram</h2>
+    <div class="sld" id="sld"><div class="empty">Loading diagram...</div></div>
+  </section>
+
+  <section>
+    <h2 id="dtitle">Station equipment</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Equipment</th><th>Breaker</th><th>Supply</th><th>Data quality</th>
+        <th>Voltage kV</th><th>Current A</th><th>Power MW</th><th>PF</th><th>Temp C</th><th>Alarms</th></tr></thead>
+      <tbody id="detail"></tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <div class="bar"><h2>Alarms</h2>
+      <select id="filter"><option value="">All substations</option></select>
+      <button id="bulk" disabled>Clear returned-to-normal (0)</button>
+    </div>
+    <div class="scroll"><table>
+      <thead><tr><th>Raised</th><th>Station</th><th>Device</th><th>Priority</th>
+        <th>Message</th><th>State</th><th>Action</th></tr></thead>
+      <tbody id="alarms"></tbody>
+    </table></div>
+  </section>
+</main>
+
+<div id="modal" hidden>
+  <div class="mbox">
+    <h3 id="m-title"></h3>
+    <div id="m-state"></div>
+    <div class="mrow"><button id="m-open">OPEN</button><button id="m-close">CLOSE</button></div>
+    <div id="m-msg"></div>
+    <button id="m-cancel">Close</button>
+  </div>
+</div>
+
+<script>
+const PRIO = ['CRITICAL','HIGH','MEDIUM','LOW'];
+const SHORT = {CRITICAL:'CRIT',HIGH:'HIGH',MEDIUM:'MED',LOW:'LOW'};
+const STATE = {ACTIVE_UNACK:'ACTIVE / UNACK', ACTIVE_ACK:'ACTIVE / ACK',
+               RTN_UNACK:'NORMAL / UNACK', RTN_ACK:'NORMAL / ACK'};
+let selected = 'SS-01', errUntil = 0, lastDetail = null, mdev = null, armed = null;
+let rtnCount = 0, bulkArmed = false;
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+async function api(url, opts) {
+  const r = await fetch(url, opts);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+
+function showErr(msg, hold) {
+  $('err').textContent = msg; $('err').hidden = false;
+  if (hold) errUntil = Date.now() + 4000;
+}
+
+function renderSummary(s) {
+  const chips = PRIO.map(p =>
+    `<span class="chip ${p}${s.by_priority[p] ? '' : ' zero'}">${SHORT[p]} ${s.by_priority[p]}</span>`);
+  if (s.unacked_manual_alarms) chips.push(`<span class="chip UNACK">UNACK ${s.unacked_manual_alarms}</span>`);
+  $('summary').innerHTML = chips.join('');
+}
+
+function renderTiles(list) {
+  const f = $('filter');
+  if (f.options.length <= 1) list.forEach(s => f.add(new Option(s.id + ' - ' + s.short_name, s.id)));
+  $('tiles').innerHTML = list.map(s => {
+    const a = s.alarms_by_priority;
+    const cls = (a.CRITICAL || s.feeders_open_or_tripped) ? 'bad' : (a.HIGH || s.comms_issues) ? 'warn' : '';
+    return `<div class="tile ${cls}${s.id === selected ? ' sel' : ''}" data-id="${esc(s.id)}">
+      <div class="tn">${esc(s.short_name)}<span>${esc(s.id)}</span></div>
+      <div class="tl">${esc(s.name)}</div>
+      <div class="tl">${esc(s.location)} | ${esc(s.voltage_level)}</div>
+      <div class="chips">${PRIO.map(p => `<span class="chip ${p}${a[p] ? '' : ' zero'}">${SHORT[p]} ${a[p]}</span>`).join('')}</div>
+      <div class="tm">Unacked ${s.unacked_alarms} | Comms issues ${s.comms_issues} | Breakers open/tripped ${s.feeders_open_or_tripped}</div>
+    </div>`;
+  }).join('');
+}
+
+function val(p, dec) {
+  if (!p) return '<td class="num">-</td>';
+  return `<td class="num${p.alarm_priority ? ' v-' + p.alarm_priority : ''}">${p.value.toFixed(dec)}</td>`;
+}
+
+function renderDetail(d) {
+  $('dtitle').textContent = d.name + ' - equipment';
+  $('detail').innerHTML = [d.transformer].concat(d.feeders).map(e => {
+    const P = e.parameters;
+    return `<tr>
+      <td>${esc(e.name)}<div class="sub">${e.type === 'transformer' ? 'Transformer ' + e.rating_mva + ' MVA' : esc(e.load_type)}</div></td>
+      <td><span class="bk ${e.breaker_state}">${e.breaker_state}</span></td>
+      <td>${e.energised ? '<span class="live">LIVE</span>' : '<span class="dead">DEAD</span>'}</td>
+      <td><span class="q ${e.quality}">${e.quality}</span></td>
+      ${val(P.voltage, 2)}${val(P.current, 0)}${val(P.power_mw, 2)}${val(P.power_factor, 2)}${val(P.temperature, 1)}
+      <td>${e.alarms.open ? `<span class="chip ${e.alarms.worst}">${e.alarms.open}</span>` : '-'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function drawBulk() {
+  const b = $('bulk');
+  if (!rtnCount) bulkArmed = false;
+  b.disabled = !rtnCount;
+  b.className = bulkArmed ? 'armed' : '';
+  b.textContent = (bulkArmed ? 'CONFIRM clear ' : 'Clear returned-to-normal (') + rtnCount + (bulkArmed ? '' : ')');
+}
+
+function renderAlarms(list) {
+  rtnCount = list.filter(a => a.state === 'RTN_UNACK' || a.state === 'RTN_ACK').length;
+  drawBulk();
+  if (!list.length) { $('alarms').innerHTML = '<tr><td colspan="7" class="empty">No open alarms</td></tr>'; return; }
+  $('alarms').innerHTML = list.map(a => {
+    const hot = a.can_ack && (a.priority === 'CRITICAL' || a.priority === 'HIGH') ? 'hot' : '';
+    return `<tr class="${hot}">
+      <td>${esc(a.timestamp.slice(5))}</td><td>${esc(a.substation_id)}</td><td>${esc(a.device_name)}</td>
+      <td><span class="chip ${a.priority}">${a.priority}</span></td>
+      <td class="msg">${esc(a.message)}</td>
+      <td class="st ${a.state}">${STATE[a.state] || a.state}</td>
+      <td><button data-act="ack" data-id="${a.id}" ${a.can_ack ? '' : 'disabled'}>Ack</button>
+          <button data-act="clear" data-id="${a.id}" ${a.can_clear ? '' : 'disabled'}>Clear</button></td>
+    </tr>`;
+  }).join('');
+}
+
+const PCOL = {CRITICAL:'#f85149', HIGH:'#f0883e', MEDIUM:'#e3b341', LOW:'#58a6ff'};
+
+function ln(x1, y1, x2, y2, on, col, w) {
+  let s = `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${on ? (col || '#3fb950') : '#484f58'}" stroke-width="${w || 3}"/>`;
+  if (on) s += `<line class="flow" style="animation-delay:-${((Date.now() % 1200) / 1000).toFixed(2)}s" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#e6edf3" stroke-opacity=".75" stroke-width="2" stroke-dasharray="4 10"/>`;
+  return s;
+}
+
+function brk(x, y, e) {
+  const st = e.breaker_state;
+  const fill = {CLOSED:'#3fb950', OPEN:'#0d1117', TRIPPED:'#f85149'}[st] || '#e3b341';
+  return `<rect class="brk${st === 'TRIPPED' ? ' trip' : ''}" data-slave="${e.slave_id}" x="${x - 10}" y="${y - 10}" width="20" height="20" rx="2" fill="${fill}" stroke="${st === 'OPEN' ? '#8b949e' : fill}" stroke-width="2"><title>${esc(e.name)} - ${st} (click to operate)</title></rect>`;
+}
+
+function vt(x, y, p, dec, unit, pre) {
+  if (!p) return '';
+  return `<text class="vt${p.alarm_priority ? ' v-' + p.alarm_priority : ''}" x="${x}" y="${y}">${pre || ''}${p.value.toFixed(dec)} ${unit}</text>`;
+}
+
+function badge(x, y, a) {
+  if (!a.open) return '';
+  return `<circle cx="${x}" cy="${y}" r="9" fill="${PCOL[a.worst]}"/><text x="${x}" y="${y + 4}" text-anchor="middle" style="fill:#0d1117;font-size:11px;font-weight:700">${a.open}</text>`;
+}
+
+function renderSLD(d) {
+  // Feeders keep at least 170 px apart; stations with more than 5 get a wider
+  // drawing that scrolls sideways instead of squeezing the text
+  const t = d.transformer, tp = t.parameters, n = d.feeders.length;
+  const W = Math.max(1000, 300 + (n - 1) * 170), cx = W / 2;
+  const xs = d.feeders.map((_, i) => n > 1 ? 150 + i * (W - 300) / (n - 1) : cx);
+  let s = `<svg viewBox="0 0 ${W} 500" style="min-width:${Math.round(W * 0.76)}px" xmlns="http://www.w3.org/2000/svg">`;
+  s += `<text class="mu" x="${cx + 15}" y="42">33 kV incomer</text>` + ln(cx, 28, cx, 76, true, '#58a6ff');
+  const tc = t.energised ? '#3fb950' : '#484f58';
+  s += `<circle cx="${cx}" cy="94" r="18" fill="none" stroke="${tc}" stroke-width="3"/><circle cx="${cx}" cy="114" r="18" fill="none" stroke="${tc}" stroke-width="3"/>`;
+  s += `<text class="nm" x="${cx + 40}" y="84">${esc(t.name)}</text>`;
+  s += vt(cx + 40, 102, tp.voltage, 2, 'kV', 'V ') + vt(cx + 40, 118, tp.current, 0, 'A', 'I ')
+     + vt(cx + 40, 134, tp.power_mw, 2, 'MW', 'P ') + vt(cx + 40, 150, tp.temperature, 1, 'C', 'T ');
+  s += ln(cx, 132, cx, 155, t.energised) + brk(cx, 165, t) + ln(cx, 175, cx, 200, t.energised) + badge(cx - 30, 165, t.alarms);
+  s += ln(70, 200, W - 70, 200, t.energised, null, 6) + '<text class="mu" x="76" y="190">11 kV busbar</text>';
+  d.feeders.forEach((f, i) => {
+    const x = xs[i], P = f.parameters, parts = f.name.split(' \u2014 ');
+    s += ln(x, 200, x, 242, t.energised) + brk(x, 252, f) + ln(x, 262, x, 418, f.energised);
+    s += `<polygon points="${x - 8},418 ${x + 8},418 ${x},432" fill="${f.energised ? '#3fb950' : '#484f58'}"/>`;
+    s += vt(x + 14, 292, P.voltage, 2, 'kV') + vt(x + 14, 310, P.current, 0, 'A')
+       + vt(x + 14, 328, P.power_mw, 2, 'MW') + vt(x + 14, 346, P.power_factor, 2, '', 'PF ');
+    s += badge(x + 26, 252, f.alarms);
+    s += `<text class="nm" x="${x}" y="456" text-anchor="middle">${esc(parts[0])}</text>`
+       + `<text class="vt" x="${x}" y="472" text-anchor="middle">${esc(parts[1] || '')}</text>`
+       + `<text class="mu" x="${x}" y="488" text-anchor="middle">${esc(f.load_type)}</text>`;
+  });
+  $('sld').innerHTML = s + '</svg>';
+  $('sldtitle').textContent = d.name + ' - single line diagram';
+}
+
+function openModal(slave) {
+  mdev = [lastDetail.transformer].concat(lastDetail.feeders).find(e => String(e.slave_id) === slave);
+  if (!mdev) return;
+  armed = null; $('m-msg').textContent = ''; drawModal(); $('modal').hidden = false;
+}
+
+function drawModal() {
+  $('m-title').textContent = mdev.name;
+  $('m-state').innerHTML = `Breaker <span class="bk ${mdev.breaker_state}">${mdev.breaker_state}</span> | Supply ${mdev.energised ? 'LIVE' : 'DEAD'}`;
+  ['OPEN', 'CLOSE'].forEach(c => {
+    const b = $('m-' + c.toLowerCase());
+    b.disabled = (c === 'OPEN' && mdev.breaker_state === 'OPEN') || (c === 'CLOSE' && mdev.breaker_state === 'CLOSED');
+    b.className = armed === c ? 'armed' : '';
+    b.textContent = armed === c ? 'CONFIRM ' + c : c;
+  });
+}
+
+async function sendCmd(c) {
+  if (armed !== c) { armed = c; drawModal(); return; }   // first click selects, second confirms
+  try {
+    const r = await api('/api/control/breaker', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({slave_id: mdev.slave_id, command: c, operator: $('op').value || 'operator'})
+    });
+    $('m-msg').textContent = 'Command #' + r.command_id + ' (' + c + ') sent...';
+    trackCommand(r.command_id, c);
+  } catch (e) { $('m-msg').textContent = 'Refused: ' + e.message; }
+  armed = null; drawModal();
+}
+
+async function trackCommand(id, c) {
+  for (let i = 0; i < 12; i++) {
+    await new Promise(r => setTimeout(r, 1000));
+    try {
+      const st = await api('/api/control/commands/' + id);
+      if (st.status === 'EXECUTED') {
+        $('m-msg').textContent = 'Command #' + id + ' ' + c + ' executed (DNP3 SELECT + OPERATE confirmed). The diagram updates on the next poll.';
+        return;
+      }
+      if (st.status === 'FAILED' || st.status === 'EXPIRED') {
+        $('m-msg').textContent = 'Command #' + id + ' ' + st.status + ': ' + (st.result || '');
+        return;
+      }
+    } catch (e) { return; }
+  }
+  $('m-msg').textContent = 'Command #' + id + ' still pending. Is the control service running?';
+}
+
+function syncModal() {
+  if ($('modal').hidden || !mdev || !lastDetail) return;
+  const n = [lastDetail.transformer].concat(lastDetail.feeders).find(e => e.slave_id === mdev.slave_id);
+  if (n) { mdev = n; drawModal(); }
+}
+
+async function refresh() {
+  try {
+    const f = $('filter').value;
+    const [sum, subs, det, al] = await Promise.all([
+      api('/api/alarms/summary'), api('/api/substations'),
+      api('/api/substations/' + selected),
+      api('/api/alarms' + (f ? '?substation=' + encodeURIComponent(f) : ''))
+    ]);
+    lastDetail = det;
+    renderSummary(sum); renderTiles(subs); renderDetail(det); renderAlarms(al);
+    renderSLD(det); syncModal();
+    if (Date.now() > errUntil) $('err').hidden = true;
+    $('upd').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  } catch (e) {
+    showErr('API not reachable: ' + e.message);
+  }
+}
+
+$('tiles').addEventListener('click', e => {
+  const t = e.target.closest('.tile');
+  if (t) { selected = t.dataset.id; refresh(); }
+});
+
+$('alarms').addEventListener('click', async e => {
+  const b = e.target.closest('button');
+  if (!b || b.disabled) return;
+  try {
+    await api('/api/alarms/' + b.dataset.id + '/' + b.dataset.act, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({operator: $('op').value || 'operator'})
+    });
+  } catch (err) { showErr(err.message, true); }
+  refresh();
+});
+
+$('sld').addEventListener('click', e => {
+  const r = e.target.closest('.brk');
+  if (r) openModal(r.dataset.slave);
+});
+$('m-open').addEventListener('click', () => sendCmd('OPEN'));
+$('m-close').addEventListener('click', () => sendCmd('CLOSE'));
+$('m-cancel').addEventListener('click', () => { $('modal').hidden = true; });
+$('modal').addEventListener('click', e => { if (e.target.id === 'modal') $('modal').hidden = true; });
+$('bulk').addEventListener('click', async () => {
+  if (!bulkArmed) { bulkArmed = true; drawBulk(); return; }   // second click confirms
+  bulkArmed = false;
+  const f = $('filter').value;
+  try {
+    await api('/api/alarms/clear-rtn' + (f ? '?substation=' + encodeURIComponent(f) : ''), {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({operator: $('op').value || 'operator'})
+    });
+  } catch (err) { showErr(err.message, true); }
+  refresh();
+});
+$('filter').addEventListener('change', () => { bulkArmed = false; refresh(); });
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>

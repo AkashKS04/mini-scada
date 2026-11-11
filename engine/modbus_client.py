@@ -2,7 +2,7 @@
 """
 engine/modbus_client.py — Phase 4 Data Collector + Alarm Engine
 
-Reads substations.json and polls all 18 Modbus slave devices.
+Reads substations.json and polls every Modbus slave device (41 across 5 substations).
 
 Features:
     - 4-level analog limits (high_high, high, low, low_low) per parameter
@@ -19,7 +19,7 @@ import os
 import json
 import time
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from pymodbus.client import ModbusTcpClient
 
@@ -44,6 +44,11 @@ ALARM_RULES = CONFIG['alarm_priority_rules']
 HOST          = "127.0.0.1"
 PORT          = 5020
 POLL_INTERVAL = 3
+
+# Historian retention. /api/trends goes back 24 h at most, so 30 h loses nothing
+# the HMI can show (24 h trends + margin) while keeping scada.db near 600 MB.
+RETENTION_HOURS        = 30
+RETENTION_EVERY_SECONDS = 600
 
 # ─────────────────────────────────────────────
 # Register addresses
@@ -124,6 +129,9 @@ for ss in CONFIG['substations']:
 
 print(f"[CONFIG] Loaded {len(device_registry)} devices")
 
+# {substation_id: transformer slave id}, used to tell if a device has supply
+TRANSFORMER_OF = {ss['id']: ss['transformer']['slave_id'] for ss in CONFIG['substations']}
+
 # ─────────────────────────────────────────────
 # In-memory state tracking
 # ─────────────────────────────────────────────
@@ -147,6 +155,9 @@ breaker_states = {}
 
 # Breaker trip alarms: {slave_id: alarm_id}
 breaker_trip_alarms = {}
+
+# Breaker open alarms: {slave_id: alarm_id}
+breaker_open_alarms = {}
 
 # Device comms status: {slave_id: 'online'|'offline'|'frozen'}
 device_comms_status = {sid: 'online' for sid in device_registry}
@@ -202,19 +213,30 @@ def init_db():
         )
     """)
 
-    # Analog readings (time-series)
+    # WAL lets the API read while the client writes, without "database is locked"
+    c.execute("PRAGMA journal_mode=WAL")
+
+    # Historian (time-series). Kept slim on purpose: device names and units
+    # live in the config, and rows are deleted after RETENTION_HOURS.
     c.execute("""
         CREATE TABLE IF NOT EXISTS readings (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              INTEGER PRIMARY KEY,
             timestamp       TEXT,
             slave_id        INTEGER,
-            device_id       TEXT,
-            device_name     TEXT,
-            substation_id   TEXT,
+            parameter       TEXT,
+            value           REAL
+        )
+    """)
+
+    # Real-time database: one row per (device, parameter), overwritten every
+    # poll. The HMI reads live values here instead of scanning the historian.
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS current_values (
+            slave_id        INTEGER,
             parameter       TEXT,
             value           REAL,
-            unit            TEXT,
-            register        TEXT
+            timestamp       TEXT,
+            PRIMARY KEY (slave_id, parameter)
         )
     """)
 
@@ -291,7 +313,6 @@ def init_db():
     """)
 
     # Indexes so trend and latest-value queries stay fast as readings grow
-    c.execute("CREATE INDEX IF NOT EXISTS idx_readings_dev_param ON readings(slave_id, parameter, id)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_readings_dev_ts ON readings(slave_id, timestamp)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_alarms_status ON alarms(status, id)")
 
@@ -344,12 +365,14 @@ def load_active_alarms():
             freeze_alarms[(sid, param)] = row['id']
         elif alarm_type == 'BREAKER_TRIP':
             breaker_trip_alarms[sid] = row['id']
+        elif alarm_type in ('BREAKER_OPEN', 'UNAUTHORISED_CONTROL'):
+            breaker_open_alarms[sid] = row['id']
         elif alarm_type in ('ANALOG_HIGH_HIGH', 'ANALOG_HIGH',
                              'ANALOG_LOW', 'ANALOG_LOW_LOW'):
             active_analog_alarms[(sid, param, alarm_type)] = row['id']
 
-    total = (len(active_analog_alarms) + len(offline_alarms) +
-             len(freeze_alarms) + len(breaker_trip_alarms))
+    total = (len(active_analog_alarms) + len(offline_alarms) + len(freeze_alarms) +
+             len(breaker_trip_alarms) + len(breaker_open_alarms))
     if total:
         print(f"[ALARM] Restored {total} open alarm(s) from DB")
 
@@ -357,15 +380,38 @@ def load_active_alarms():
 # ─────────────────────────────────────────────
 # DB write helpers
 # ─────────────────────────────────────────────
-def save_reading(dev, parameter, value, unit, register):
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("""
-        INSERT INTO readings
-        (timestamp, slave_id, device_id, device_name, substation_id, parameter, value, unit, register)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (now_ts(), dev['slave_id'], dev['id'], dev['name'],
-          dev['substation_id'], parameter, value, unit, register))
-    conn.commit()
+def save_readings(rows):
+    """Write one poll cycle in a single transaction. rows: (ts, slave_id, parameter, value)."""
+    if not rows:
+        return
+    conn = sqlite3.connect(DB_PATH, timeout=10)
+    with conn:
+        conn.executemany(
+            "INSERT INTO readings (timestamp, slave_id, parameter, value) VALUES (?, ?, ?, ?)",
+            rows)
+        conn.executemany("""
+            INSERT INTO current_values (timestamp, slave_id, parameter, value) VALUES (?, ?, ?, ?)
+            ON CONFLICT(slave_id, parameter) DO UPDATE
+            SET value=excluded.value, timestamp=excluded.timestamp
+        """, rows)
+    conn.close()
+
+
+def purge_old_readings():
+    """
+    Delete historian rows older than RETENTION_HOURS. Ids grow with time, so
+    find the first id inside the window and delete everything below it: a
+    rowid range delete, cheap even on millions of rows.
+    """
+    cutoff = (datetime.now() - timedelta(hours=RETENTION_HOURS)).strftime("%Y-%m-%d %H:%M:%S")
+    conn = sqlite3.connect(DB_PATH, timeout=10)
+    row = conn.execute("SELECT id FROM readings WHERE timestamp >= ? ORDER BY id LIMIT 1",
+                       (cutoff,)).fetchone()
+    if row:
+        with conn:
+            n = conn.execute("DELETE FROM readings WHERE id < ?", (row[0],)).rowcount
+        if n:
+            print(f"[HISTORIAN] Purged {n} readings older than {RETENTION_HOURS} h")
     conn.close()
 
 
@@ -493,7 +539,7 @@ def sync_open_alarms():
     conn.close()
 
     for table in (active_analog_alarms, offline_alarms,
-                  freeze_alarms, breaker_trip_alarms):
+                  freeze_alarms, breaker_trip_alarms, breaker_open_alarms):
         for key in [k for k, v in table.items() if v not in open_ids]:
             del table[key]
 
@@ -578,6 +624,28 @@ def check_analog_alarm(dev, parameter, value):
 # ─────────────────────────────────────────────
 # Breaker state monitoring
 # ─────────────────────────────────────────────
+def load_breaker_states():
+    """Start from the last known breaker state so a restart does not look like a change."""
+    codes = {'OPEN': 0, 'CLOSED': 1, 'TRIPPED': 2}
+    conn = sqlite3.connect(DB_PATH)
+    for sid, state in conn.execute("SELECT slave_id, breaker_state FROM devices"):
+        if state in codes:
+            breaker_states[sid] = codes[state]
+    conn.close()
+
+
+def find_operator_command(sid):
+    """An OPEN sent through the control layer in the last 60 s, if there is one."""
+    since = (datetime.now() - timedelta(seconds=60)).strftime("%Y-%m-%d %H:%M:%S")
+    conn = sqlite3.connect(DB_PATH)
+    row = conn.execute(
+        "SELECT id, operator FROM control_commands "
+        "WHERE slave_id=? AND command='OPEN' AND status IN ('EXECUTING','EXECUTED') "
+        "AND timestamp>=? ORDER BY id DESC LIMIT 1", (sid, since)).fetchone()
+    conn.close()
+    return {'id': row[0], 'operator': row[1]} if row else None
+
+
 def check_breaker_state(dev, raw_state):
     """Detect breaker state changes and raise TRIP alarms."""
     sid       = dev['slave_id']
@@ -623,6 +691,28 @@ def check_breaker_state(dev, raw_state):
                        auto=True):
             del breaker_trip_alarms[sid]
 
+    # OPEN: an operator command, or a change nobody asked for
+    if raw_state == 0:
+        if sid in breaker_open_alarms:
+            reopen_alarm(breaker_open_alarms[sid])
+        else:
+            cmd = find_operator_command(sid)
+            if cmd:
+                atype = 'BREAKER_OPEN'
+                priority = 'CRITICAL' if dev['type'] == 'transformer' else 'HIGH'
+                msg = (f"BREAKER OPEN: {dev['name']} opened by {cmd['operator']} "
+                       f"(command #{cmd['id']})")
+            else:
+                atype, priority = 'UNAUTHORISED_CONTROL', 'CRITICAL'
+                msg = (f"BREAKER OPEN: {dev['name']} opened WITHOUT an operator "
+                       f"command - possible unauthorised or local operation")
+            breaker_open_alarms[sid] = raise_alarm(
+                dev, 'breaker_state', raw_state, 0, atype, priority, msg)
+    elif raw_state == 1 and sid in breaker_open_alarms:
+        if clear_alarm(breaker_open_alarms[sid], dev,
+                       f"{dev['name']} breaker closed", auto=True):
+            del breaker_open_alarms[sid]
+
     breaker_states[sid] = raw_state
 
 
@@ -664,9 +754,28 @@ def handle_poll_success(dev):
 # ─────────────────────────────────────────────
 # Data freeze detection
 # ─────────────────────────────────────────────
+def is_energised(dev):
+    """Own breaker and the substation transformer breaker are both CLOSED."""
+    return (breaker_states.get(dev['slave_id'], 1) == 1 and
+            breaker_states.get(TRANSFORMER_OF[dev['substation_id']], 1) == 1)
+
+
 def check_freeze(dev, parameter, value):
     sid = dev['slave_id']
     key = (sid, parameter)
+
+    # A de-energised device legitimately reads constant zeros, so it is never
+    # "frozen": reset the tracker and drop any freeze alarm raised earlier
+    if not is_energised(dev):
+        freeze_tracker.pop(key, None)
+        if key in freeze_alarms:
+            clear_alarm(freeze_alarms[key], dev,
+                        f"{parameter.upper()} device de-energised", auto=True)
+            del freeze_alarms[key]
+            if (not [k for k in freeze_alarms if k[0] == sid]
+                    and device_comms_status.get(sid) == 'frozen'):
+                update_comms_status(dev, 'online', now_ts())
+        return
 
     if key not in freeze_tracker:
         freeze_tracker[key] = {'last_value': value, 'count': 1}
@@ -703,7 +812,17 @@ def check_freeze(dev, parameter, value):
 # ─────────────────────────────────────────────
 def main():
     init_db()
+
+    # Held open for the life of the client and never used. SQLite deletes the
+    # WAL side files when the last connection closes; if anyone else (e.g.
+    # akash running a check) then opens scada.db, they recreate scada.db-wal/-shm
+    # owned by themselves and this service fails with "readonly database".
+    # It must run one read: an idle connection is not attached to the WAL yet.
+    wal_keeper = sqlite3.connect(DB_PATH)
+    wal_keeper.execute("SELECT 1 FROM sqlite_master LIMIT 1").fetchall()
+
     load_active_alarms()
+    load_breaker_states()
 
     client = ModbusTcpClient(HOST, port=PORT)
     print(f"[CLIENT] Connecting to {HOST}:{PORT} ...")
@@ -719,37 +838,32 @@ def main():
     print(f"[CLIENT] Polling {len(device_registry)} devices every {POLL_INTERVAL}s")
     print()
 
+    last_purge = 0
     try:
         while True:
             ts = now_ts()
             sync_open_alarms()
+            batch = []
 
             for sid in sorted(device_registry.keys()):
                 dev    = device_registry[sid]
-                all_ok = True
 
-                # ── Read analog registers ──
-                for param, reg_addr in dev['reg_map'].items():
-                    result = client.read_holding_registers(
-                        reg_addr, count=1, slave=sid
-                    )
-                    if result.isError():
-                        all_ok = False
-                        continue
+                # ── Read analog registers 40001-40006 in one request ──
+                result = client.read_holding_registers(
+                    REG_VOLTAGE, count=REG_FREQUENCY - REG_VOLTAGE + 1, slave=sid
+                )
+                all_ok = not result.isError()
 
-                    raw   = result.registers[0]
-                    scale = REG_SCALES[param]
-                    value = raw / scale
+                if all_ok:
+                    for param, reg_addr in dev['reg_map'].items():
+                        value = result.registers[reg_addr - REG_VOLTAGE] / REG_SCALES[param]
+                        batch.append((ts, sid, param, value))
 
-                    # Save to historian
-                    register = f"4{str(reg_addr).zfill(4)}"
-                    save_reading(dev, param, value, '', register)
+                        # Check 4-level analog alarms
+                        check_analog_alarm(dev, param, value)
 
-                    # Check 4-level analog alarms
-                    check_analog_alarm(dev, param, value)
-
-                    # Check freeze
-                    check_freeze(dev, param, value)
+                        # Check freeze
+                        check_freeze(dev, param, value)
 
                 # ── Read breaker state ──
                 br_result = client.read_holding_registers(
@@ -763,6 +877,13 @@ def main():
                     handle_poll_success(dev)
                 else:
                     handle_poll_failure(dev)
+
+            # Historian + real-time table, one transaction per cycle
+            save_readings(batch)
+
+            if time.time() - last_purge > RETENTION_EVERY_SECONDS:
+                purge_old_readings()
+                last_purge = time.time()
 
             time.sleep(POLL_INTERVAL)
 

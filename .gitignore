@@ -14,7 +14,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# lib/  (removed: this project keeps its own code in lib/)
 lib64/
 parts/
 sdist/
@@ -220,3 +220,10 @@ __marimo__/
 scada.db
 *.db
 *.sqlite
+
+# Editor backups
+*~
+
+# SQLite WAL side files
+*.db-wal
+*.db-shm
