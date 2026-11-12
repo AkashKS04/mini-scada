@@ -15,14 +15,16 @@ uses no real utility data. Keep it that way.
 
 ## Architecture
 simulator/modbus_server.py   41 Modbus slaves (RTU simulator) on :5020, plus a DNP3
-                             outstation on 127.0.0.1:20000, plus a failure injector
+                             outstation on 127.0.0.1:20000, a failure injector, and a
+                             test-set port on 127.0.0.1:20001 (inject a feeder fault on demand)
 engine/modbus_client.py      polls all slaves (one block read of 40001-40006 + one breaker read each;
                              ~3.1 s cycle), writes SQLite once per cycle, runs the alarm engine
 engine/dnp3_controller.py    DNP3 master: executes queued breaker commands (SELECT then OPERATE)
 api/app.py                   Flask REST API on 127.0.0.1:8080, serves templates/hmi.html
 lib/dnp3lite.py              pure-Python DNP3 subset (master + outstation), shared
 config/substations.json      SINGLE SOURCE OF TRUTH: devices, limits, priorities, load nodes
-templates/hmi.html           station HMI (tiles, SVG single-line diagram, equipment table, alarms).
+templates/hmi.html           station HMI (tiles, SVG single-line diagram, feeder network map for
+                             is_feeder_map stations (SS-01), equipment table, alarms).
                              The SLD lays out any feeder count; >5 feeders widens it and it scrolls.
 templates/index.html         OLD Phase 3 dashboard, unused
 systemd/                     copies of the service unit files
@@ -48,6 +50,9 @@ Wire addresses are 0-based (Modbus convention, what Wireshark shows): 40001-4000
 40100 = 99. pymodbus adds 1 internally on both reads and writes; leave the datastore at 0.
 Values are clamped to 0-65535: one out-of-range register makes the whole read fail.
 An OFFLINE device answers Modbus exception 0x0B (Gateway Target Device Failed to Respond).
+40007 (addr 6) = fault section from the relay fault locator: 0 none, N = cable section feeding
+load node N (feeders without load_nodes have 3 sections). Kept in current_values only, not the
+historian; changes are logged in the SOE as FAULT_LOCATED / FAULT_CLEARED.
 DNP3: master address 1, outstation address 100 + substation number (SS-01 = 101 ... SS-05 = 105).
 Point index 0 = transformer breaker, N = feeder N breaker. CROB code 0x81 = trip/OPEN,
 0x41 = close. Select-before-operate, select timeout 10 s.
@@ -112,7 +117,8 @@ systemd/ holds copies of all four installed units; re-copy them after changing /
 - Flask must be started with debug=False (the debugger allows remote code execution).
 - `git config --global --add safe.directory /home/akash/mini-scada` is needed after the
   ownership change.
-- The HMI is served from templates/hmi.html. Hard-refresh the browser (Ctrl+Shift+R) after changes.
+- The HMI is served from templates/hmi.html. Flask (debug=False) caches the template, so after
+  editing it RESTART scada-dashboard, then hard-refresh the browser (Ctrl+Shift+R).
 
 ## Simulator behaviour to know
 Electrical model (the SLD numbers add up): feeder V = its station's 11 kV bus, P from the
@@ -125,6 +131,10 @@ LOAD_CEILING 0.88 keeps normal peak load below the HIGH limits. FAILURE_GAP (300
 how often offline / freeze / trip failures are injected. Injected trips auto-reclose after 25-50 s;
 freeze injection only hits voltage, current and MW. Values follow breaker state: open
 feeder = 0 A and 0 MW; open transformer = whole bus dead. Spike probability is 0.001.
+Faults: trip_feeder() sets 40007 and trips the breaker. Random injector trips auto-reclose after
+25-50 s (unless an operator operated it meanwhile); test-set faults stay tripped until an operator
+CLOSEs over DNP3, which clears 40007. POST /api/sim/fault forwards to the test set and logs
+TEST_FAULT_INJECTED in the SOE with the operator name: it is a simulation tool, not a control.
 OFFLINE sets RtuContext.offline, so validate() refuses requests; never remove a slave from the
 server context (pymodbus drops unknown unit ids silently -> 3 s client timeouts, 9 s cycles).
 
@@ -142,6 +152,8 @@ server context (pymodbus drops unknown unit ids silently -> 3 s client timeouts,
   simulator's own context too and crashed every thread. Caught in a scratchpad test.
 - 2026-11-11: Claude opened scada.db read-only as akash to check it, recreated the WAL side
   files as akash, and crash-looped scada-client for ~40 s. Fixed with wal_keeper + the rule above.
+- 2026-11-12: a screenshot looked unchanged after a CSS edit because Flask had cached the
+  template. Restart the API process before judging an HMI change.
 - The old live-value query (MAX(id) GROUP BY over readings) took 2 s at 322k rows. Never read live
   values from the historian; use current_values.
 
@@ -150,12 +162,19 @@ Done: Modbus monitoring, 4-level alarms, historian + /api/trends, failure detect
 station HMI with SLD, DNP3 control with confirm step, unauthorised-control detection,
 bulk "clear returned-to-normal" button, firewalld + restricted service user,
 5 substations / 41 devices, real-time table, historian retention, 0-based Modbus addressing,
-electrically consistent simulator (transformer = sum of feeders), real OFFLINE failures.
-Next: SS-01 feeder map (/api/feedermap/SS-01 already returns nodes and impact; needs the
-HMI view with fault animation). Later ideas: state-based alarm suppression for out-of-service
+electrically consistent simulator (transformer = sum of feeders), real OFFLINE failures,
+SS-01 feeder network map (fault location, outage/restore wave, supply impact, test-set faults).
+Next ideas: FLISR (open sectionalisers around the faulted section and restore healthy sections), state-based alarm suppression for out-of-service
 equipment, SOE tab in the HMI, README refresh, login for the HMI, DNP3 event polling
 (outstation-timestamped SOE; today SOE times are poll times, ~3 s resolution).
 Known gaps: operator name is free text (no real authentication), DNP3 is a subset.
+
+## Testing the HMI without a person
+Run a copy of the stack in the scratchpad on other ports (sed 5020/20000/20001/8080), add to the
+COPY of hmi.html a window.onerror trap and <img src="/slow.gif?t=12"> (a test-only Flask route
+that sleeps) so the load event waits for data, then:
+firefox --headless --no-remote --profile <fresh dir> --window-size 1400,2400 --screenshot shot.png URL
+Use a fresh profile each time (cache). Screenshots show end states, not the transitions.
 
 ## Working style that suits the owner
 Complete, copy-ready files; explain the why briefly; test before claiming; be honest about

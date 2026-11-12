@@ -35,6 +35,7 @@
     "40004": { "address": 3, "parameter": "power_factor", "unit": "", "scale": 100, "description": "Power factor (stored as x100, e.g. 95 = 0.95)" },
     "40005": { "address": 4, "parameter": "temperature", "unit": "degC", "scale": 10, "description": "Temperature (stored as degC x10, transformer only)" },
     "40006": { "address": 5, "parameter": "frequency", "unit": "Hz", "scale": 100, "description": "Frequency (stored as Hz x100, e.g. 5000 = 50.00Hz)" },
+    "40007": { "address": 6, "parameter": "fault_section", "unit": "", "scale": 1, "description": "Fault section from the relay fault locator (0 = none, N = cable section feeding load node N)" },
     "40100": { "address": 99, "parameter": "breaker_state", "unit": "", "scale": 1, "description": "Breaker state: 0=OPEN, 1=CLOSED, 2=TRIPPED, 3=UNKNOWN" }
   },
   "substations": [

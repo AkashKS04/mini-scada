@@ -22,6 +22,8 @@ Endpoints
     POST /api/control/breaker           queue a breaker OPEN/CLOSE command
     GET  /api/control/commands          recent control commands
     GET  /api/control/commands/<id>     status of one command
+    POST /api/sim/fault                 TEST SET: inject a feeder fault in the simulator
+                                        {"slave_id": 3, "section": 2 (optional)}
 
 Alarm rules (ISA-18.2 style)
     CRITICAL / HIGH  must be ACKNOWLEDGED, then CLEARED by the operator.
@@ -32,6 +34,7 @@ Alarm rules (ISA-18.2 style)
 
 import os
 import json
+import socket
 import sqlite3
 from datetime import datetime, timedelta
 
@@ -55,6 +58,9 @@ with open(CONFIG_PATH) as f:
 
 PRIORITY_RANK     = {'CRITICAL': 1, 'HIGH': 2, 'MEDIUM': 3, 'LOW': 4}
 QUALITY_BY_STATUS = {'online': 'GOOD', 'frozen': 'SUSPECT', 'offline': 'BAD'}
+
+# Simulator test-set port (fault injection for demonstrations)
+TEST_SET_ADDR     = ('127.0.0.1', 20001)
 
 # ─────────────────────────────────────────────
 # Device index built from config
@@ -382,6 +388,8 @@ def api_feedermap(ss_id):
     states = device_states()
     xfmr_ok = (states.get(ss['transformer']['slave_id'], {})
                .get('breaker_state') or 'CLOSED') == 'CLOSED'
+    faults = {r['slave_id']: int(r['value']) for r in query(
+        "SELECT slave_id, value FROM current_values WHERE parameter='fault_section'")}
 
     feeders, nodes = [], []
     total_consumers = affected_consumers = 0
@@ -390,6 +398,8 @@ def api_feedermap(ss_id):
     for f in ss['feeders']:
         breaker  = states.get(f['slave_id'], {}).get('breaker_state') or 'CLOSED'
         energised = xfmr_ok and breaker == 'CLOSED'
+        section   = faults.get(f['slave_id'], 0)
+        f_nodes   = f.get('load_nodes', [])
         feeders.append({
             'slave_id':      f['slave_id'],
             'id':            f['id'],
@@ -398,8 +408,15 @@ def api_feedermap(ss_id):
             'load_type':     f['load_type'],
             'breaker_state': breaker,
             'energised':     energised,
+            'comms_status':  states.get(f['slave_id'], {}).get('comms_status') or 'online',
+            # Cable section the relay located the fault in (section N feeds
+            # load node N); 0 = no fault
+            'fault_section': section,
+            'fault_between': ([f_nodes[section - 2]['name'] if section > 1 else 'Substation',
+                               f_nodes[section - 1]['name']]
+                              if 0 < section <= len(f_nodes) else None),
         })
-        for n in f.get('load_nodes', []):
+        for seq, n in enumerate(f_nodes, start=1):
             nodes.append({
                 'id':        n['id'],
                 'name':      n['name'],
@@ -409,6 +426,7 @@ def api_feedermap(ss_id):
                 'x':         n['x'],
                 'y':         n['y'],
                 'feeder_slave_id': f['slave_id'],
+                'seq':       seq,
                 'energised': energised,
             })
             total_consumers += n['consumers']
@@ -680,6 +698,42 @@ def api_control_breaker():
 
     return jsonify({'status': 'queued', 'command_id': cmd_id,
                     'slave_id': slave_id, 'command': command}), 202
+
+
+# ─────────────────────────────────────────────
+# Test set (simulation only)
+# ─────────────────────────────────────────────
+@app.route('/api/sim/fault', methods=['POST'])
+def api_sim_fault():
+    """
+    Ask the simulator's test set to put a fault on a feeder. This is NOT an
+    operator control: in the field it is the event the protection reacts to.
+    Logged in the SOE as TEST_FAULT_INJECTED so the audit trail stays honest.
+    """
+    data     = request.get_json(silent=True) or {}
+    operator = get_operator()
+    slave_id = data.get('slave_id')
+    section  = data.get('section')
+    dev = DEVICES.get(slave_id)
+    if not dev or dev['type'] != 'feeder':
+        return jsonify({'error': 'slave_id must be a feeder'}), 404
+
+    req = {'cmd': 'trip', 'slave_id': slave_id}
+    if section is not None:
+        req['section'] = section
+    try:
+        with socket.create_connection(TEST_SET_ADDR, timeout=5) as sock:
+            sock.sendall((json.dumps(req) + '\n').encode())
+            reply = json.loads(sock.makefile().readline())
+    except (OSError, ValueError) as e:
+        return jsonify({'error': f'simulator test set not reachable: {e}'}), 503
+
+    if not reply.get('ok'):
+        return jsonify({'error': reply.get('message', 'refused')}), 409
+    log_soe(dev['substation_id'], dev['id'], dev['name'], 'TEST_FAULT_INJECTED',
+            'fault_section', '', section or 'random',
+            f"Test set: fault injected on {dev['name']} ({reply['message']})", operator)
+    return jsonify({'status': 'ok', 'message': reply['message']})
 
 
 @app.route('/api/control/commands')

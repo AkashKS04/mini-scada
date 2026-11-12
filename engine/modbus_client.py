@@ -60,6 +60,7 @@ REG_POWER_MW     = 2
 REG_POWER_FACTOR = 3
 REG_TEMPERATURE  = 4
 REG_FREQUENCY    = 5
+REG_FAULT_SECTION= 6    # 40007: section a relay located the last fault in, 0 = none
 REG_BREAKER      = 99
 
 # Register scale factors (divide raw value by scale to get real value)
@@ -159,6 +160,9 @@ breaker_trip_alarms = {}
 
 # Breaker open alarms: {slave_id: alarm_id}
 breaker_open_alarms = {}
+
+# Last fault section seen per feeder: {slave_id: int}
+fault_sections = {}
 
 # Device comms status: {slave_id: 'online'|'offline'|'frozen'}
 device_comms_status = {sid: 'online' for sid in device_registry}
@@ -386,9 +390,13 @@ def load_active_alarms():
 # ─────────────────────────────────────────────
 # DB write helpers
 # ─────────────────────────────────────────────
-def save_readings(rows):
-    """Write one poll cycle in a single transaction. rows: (ts, slave_id, parameter, value)."""
-    if not rows:
+def save_readings(rows, status_rows=()):
+    """
+    Write one poll cycle in a single transaction. rows: (ts, slave_id, parameter, value).
+    rows go to the historian and the real-time table; status_rows (e.g. the
+    fault section) only to the real-time table.
+    """
+    if not rows and not status_rows:
         return
     conn = sqlite3.connect(DB_PATH, timeout=10)
     with conn:
@@ -399,8 +407,23 @@ def save_readings(rows):
             INSERT INTO current_values (timestamp, slave_id, parameter, value) VALUES (?, ?, ?, ?)
             ON CONFLICT(slave_id, parameter) DO UPDATE
             SET value=excluded.value, timestamp=excluded.timestamp
-        """, rows)
+        """, list(rows) + list(status_rows))
     conn.close()
+
+
+def check_fault_section(dev, section):
+    """SOE entry when the relay reports a new fault location, or it is cleared."""
+    sid  = dev['slave_id']
+    prev = fault_sections.get(sid, 0)
+    if section != prev:
+        if section:
+            log_soe(dev, 'FAULT_LOCATED', 'fault_section', prev, section,
+                    f"{dev['name']}: fault located in section {section}")
+        else:
+            log_soe(dev, 'FAULT_CLEARED', 'fault_section', prev, 0,
+                    f"{dev['name']}: fault indication reset")
+        print(f"  [FAULT][{dev['name']}] section {prev} → {section}")
+    fault_sections[sid] = section
 
 
 def purge_old_readings():
@@ -852,14 +875,14 @@ def main():
         while True:
             ts = now_ts()
             sync_open_alarms()
-            batch = []
+            batch, status = [], []
 
             for sid in sorted(device_registry.keys()):
                 dev    = device_registry[sid]
 
-                # ── Read analog registers 40001-40006 in one request ──
+                # ── Read registers 40001-40007 in one request ──
                 result = client.read_holding_registers(
-                    REG_VOLTAGE, count=REG_FREQUENCY - REG_VOLTAGE + 1, slave=sid
+                    REG_VOLTAGE, count=REG_FAULT_SECTION - REG_VOLTAGE + 1, slave=sid
                 )
                 all_ok = not result.isError()
 
@@ -873,6 +896,11 @@ def main():
 
                         # Check freeze
                         check_freeze(dev, param, value)
+
+                    if dev['type'] == 'feeder':
+                        section = result.registers[REG_FAULT_SECTION - REG_VOLTAGE]
+                        status.append((ts, sid, 'fault_section', section))
+                        check_fault_section(dev, section)
 
                 # ── Read breaker state ──
                 br_result = client.read_holding_registers(
@@ -888,7 +916,7 @@ def main():
                     handle_poll_failure(dev)
 
             # Historian + real-time table, one transaction per cycle
-            save_readings(batch)
+            save_readings(batch, status)
 
             if time.time() - last_purge > RETENTION_EVERY_SECONDS:
                 purge_old_readings()

@@ -14,7 +14,13 @@ that is the number Wireshark shows.
     40004 (addr 3)  → Power Factor (×  100,    e.g.   95 = 0.95)
     40005 (addr 4)  → Temperature  (°C × 10,   e.g.  725 = 72.5 °C) — transformer only
     40006 (addr 5)  → Frequency    (Hz × 100,  e.g. 5000 = 50.00 Hz)
+    40007 (addr 6)  → Fault section (0 = none, N = cable section feeding load
+                      node N), as a protection relay's fault locator reports it
     40100 (addr 99) → Breaker State (0=OPEN, 1=CLOSED, 2=TRIPPED, 3=UNKNOWN)
+
+Test set (127.0.0.1:20001): one JSON line {"cmd": "trip", "slave_id": 3,
+"section": 2} injects a fault the way a secondary-injection test set would.
+It stays tripped until an operator closes the breaker over DNP3.
 
 Electrical model (so the numbers on the SLD add up):
     Feeder      V = its station's 11 kV bus voltage, P from the load curve,
@@ -34,6 +40,7 @@ import json
 import time
 import math
 import random
+import socket
 import threading
 import asyncio
 from pymodbus.datastore import (
@@ -63,6 +70,7 @@ REG_POWER_MW     = 2    # 40003
 REG_POWER_FACTOR = 3    # 40004
 REG_TEMPERATURE  = 4    # 40005
 REG_FREQUENCY    = 5    # 40006
+REG_FAULT_SECTION= 6    # 40007
 REG_BREAKER      = 99   # 40100
 
 REGISTER_COUNT   = 110  # allocate enough registers
@@ -82,6 +90,9 @@ AMBIENT_C        = 30.0
 OIL_RISE_C       = 50.0     # rise above ambient at full rated load
 THERMAL_TAU      = 600.0    # seconds
 UPDATE_SECONDS   = 2
+
+# Test-set port for injecting faults on demand (localhost only)
+TEST_SET_ADDR    = ("127.0.0.1", 20001)
 
 # Below this the 11 kV bus counts as dead
 BUS_LIVE_KV      = 5.0
@@ -139,6 +150,9 @@ for ss in CONFIG['substations']:
             'limits':      f['analog_limits'],
             'has_temp':    False,
             'consumers':   f.get('estimated_consumers', 0),
+            # Cable sections a fault can be located in: one per load node
+            # (map feeders), otherwise three
+            'sections':    len(f.get('load_nodes') or []) or 3,
         }
 
 print(f"[CONFIG] Loaded {len(device_registry)} devices from substations.json")
@@ -367,8 +381,61 @@ def apply_breaker_command(slave_id, command):
         return False, "unsupported command"
 
     store.setValues(3, REG_BREAKER, [new_state])
+    if new_state == BREAKER_CLOSED:
+        store.setValues(3, REG_FAULT_SECTION, [0])   # fault repaired, feeder restored
     print(f"\n[CONTROL] Slave {slave_id} ({device['name']}) breaker -> {command}\n")
     return True, "executed"
+
+
+def trip_feeder(slave_id, section=None):
+    """
+    A fault on a feeder: protection trips the breaker and the relay's fault
+    locator reports the faulted section. Returns (ok, message).
+    """
+    device = device_registry.get(slave_id)
+    if not device or device['type'] != 'feeder':
+        return False, "not a feeder"
+    if section is None:
+        section = random.randint(1, device['sections'])
+    if not 1 <= section <= device['sections']:
+        return False, f"section must be 1-{device['sections']}"
+
+    store = device_contexts[slave_id]
+    if store.getValues(3, REG_BREAKER, count=1)[0] != BREAKER_CLOSED:
+        return False, "breaker is not closed"
+
+    store.setValues(3, REG_FAULT_SECTION, [section])
+    store.setValues(3, REG_BREAKER, [BREAKER_TRIPPED])
+    store.setValues(3, REG_CURRENT,  [0])
+    store.setValues(3, REG_POWER_MW, [0])
+    print(f"\n[FAILURE] ⚡ Slave {slave_id} ({device['name']}) → FAULT in section "
+          f"{section}, BREAKER TRIPPED\n")
+    return True, f"tripped, fault in section {section}"
+
+
+def test_set_server():
+    """Accept one-line JSON fault requests on TEST_SET_ADDR (localhost only)."""
+    srv = socket.socket()
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    srv.bind(TEST_SET_ADDR)
+    srv.listen(5)
+    print(f"[TEST-SET] Fault injection listening on {TEST_SET_ADDR[0]}:{TEST_SET_ADDR[1]}")
+    while True:
+        conn, _ = srv.accept()
+        with conn:
+            try:
+                conn.settimeout(5)
+                req = json.loads(conn.makefile().readline())
+                if req.get("cmd") != "trip":
+                    ok, msg = False, "unsupported command"
+                else:
+                    ok, msg = trip_feeder(int(req["slave_id"]), req.get("section"))
+            except (OSError, ValueError, KeyError, TypeError) as e:
+                ok, msg = False, f"bad request: {e}"
+            try:
+                conn.sendall((json.dumps({"ok": ok, "message": msg}) + "\n").encode())
+            except OSError:
+                pass
 
 
 # ─────────────────────────────────────────────
@@ -537,23 +604,18 @@ def failure_injector():
             feeder_ids = [sid for sid, d in device_registry.items()
                           if d['type'] == 'feeder']
             slave_id  = random.choice(feeder_ids)
-            device    = device_registry[slave_id]
-            name      = device['name']
+            name      = device_registry[slave_id]['name']
             store     = device_contexts[slave_id]
 
-            print(f"\n[FAILURE] ⚡ Slave {slave_id} ({name}) → BREAKER TRIPPED\n")
-            store.setValues(3, REG_BREAKER, [BREAKER_TRIPPED])
-
-            # Feeder values drop to near zero when tripped
-            store.setValues(3, REG_CURRENT,  [0])
-            store.setValues(3, REG_POWER_MW, [0])
-
-            duration = random.randint(25, 50)
-            time.sleep(duration)
-
-            # Auto-reclose after duration
-            store.setValues(3, REG_BREAKER, [BREAKER_CLOSED])
-            print(f"\n[FAILURE] ✓  Slave {slave_id} ({name}) → BREAKER AUTO-RECLOSED\n")
+            ok, _ = trip_feeder(slave_id)
+            if ok:
+                time.sleep(random.randint(25, 50))
+                # Transient fault: auto-reclose, unless an operator has
+                # already operated the breaker in the meantime
+                if store.getValues(3, REG_BREAKER, count=1)[0] == BREAKER_TRIPPED:
+                    store.setValues(3, REG_FAULT_SECTION, [0])
+                    store.setValues(3, REG_BREAKER, [BREAKER_CLOSED])
+                    print(f"\n[FAILURE] ✓  Slave {slave_id} ({name}) → BREAKER AUTO-RECLOSED\n")
 
         # Wait before next failure
         time.sleep(random.randint(*FAILURE_GAP))
@@ -575,6 +637,9 @@ async def main():
     # Start failure injector
     fi = threading.Thread(target=failure_injector, daemon=True)
     fi.start()
+
+    # Test set: inject faults on demand for demonstrations
+    threading.Thread(target=test_set_server, daemon=True).start()
 
     # DNP3 outstation: the control path for breaker OPEN / CLOSE
     sys.path.insert(0, os.path.join(BASE_DIR, 'lib'))
@@ -602,6 +667,7 @@ async def main():
     print("   40004 (addr 3)  → Power Factor (× 100)")
     print("   40005 (addr 4)  → Temperature (°C × 10) — transformer only")
     print("   40006 (addr 5)  → Frequency (Hz × 100)")
+    print("   40007 (addr 6)  → Fault section (0 = none)")
     print("   40100 (addr 99) → Breaker State (0=OPEN 1=CLOSED 2=TRIPPED)")
     print()
     print(" Failure injection: ENABLED (first failure in ~45s)")
