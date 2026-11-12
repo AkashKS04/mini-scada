@@ -28,14 +28,14 @@
     "LOW": { "manual_ack_required": false, "auto_clear": true, "description": "Informational, device restored — auto-ACK and auto-clear" }
   },
   "register_map": {
-    "_comment": "Same register map for every Modbus slave device",
-    "40001": { "parameter": "voltage", "unit": "kV", "scale": 100, "description": "Voltage (stored as kV x100, e.g. 1100 = 11.00kV)" },
-    "40002": { "parameter": "current", "unit": "A", "scale": 10, "description": "Current (stored as A x10)" },
-    "40003": { "parameter": "power_mw", "unit": "MW", "scale": 100, "description": "Active power (stored as MW x100, e.g. 250 = 2.50MW)" },
-    "40004": { "parameter": "power_factor", "unit": "", "scale": 100, "description": "Power factor (stored as x100, e.g. 95 = 0.95)" },
-    "40005": { "parameter": "temperature", "unit": "degC", "scale": 10, "description": "Temperature (stored as degC x10, transformer only)" },
-    "40006": { "parameter": "frequency", "unit": "Hz", "scale": 100, "description": "Frequency (stored as Hz x100, e.g. 5000 = 50.00Hz)" },
-    "40100": { "parameter": "breaker_state", "unit": "", "scale": 1, "description": "Breaker state: 0=OPEN, 1=CLOSED, 2=TRIPPED, 3=UNKNOWN" }
+    "_comment": "Same register map for every Modbus slave device. address = 0-based wire address (40001 -> 0), as shown in Wireshark",
+    "40001": { "address": 0, "parameter": "voltage", "unit": "kV", "scale": 100, "description": "Voltage (stored as kV x100, e.g. 1100 = 11.00kV)" },
+    "40002": { "address": 1, "parameter": "current", "unit": "A", "scale": 10, "description": "Current (stored as A x10)" },
+    "40003": { "address": 2, "parameter": "power_mw", "unit": "MW", "scale": 100, "description": "Active power (stored as MW x100, e.g. 250 = 2.50MW)" },
+    "40004": { "address": 3, "parameter": "power_factor", "unit": "", "scale": 100, "description": "Power factor (stored as x100, e.g. 95 = 0.95)" },
+    "40005": { "address": 4, "parameter": "temperature", "unit": "degC", "scale": 10, "description": "Temperature (stored as degC x10, transformer only)" },
+    "40006": { "address": 5, "parameter": "frequency", "unit": "Hz", "scale": 100, "description": "Frequency (stored as Hz x100, e.g. 5000 = 50.00Hz)" },
+    "40100": { "address": 99, "parameter": "breaker_state", "unit": "", "scale": 1, "description": "Breaker state: 0=OPEN, 1=CLOSED, 2=TRIPPED, 3=UNKNOWN" }
   },
   "substations": [
     {
@@ -50,16 +50,16 @@
       "_comment": "This substation gets the full feeder map with load connectivity",
       "transformer": {
         "id": "TR-SS01-T1",
-        "name": "T1 — 10MVA 33/11kV",
+        "name": "T1 — 12.5MVA 33/11kV",
         "slave_id": 1,
-        "rating_mva": 10,
+        "rating_mva": 12.5,
         "hv_kv": 33,
         "lv_kv": 11,
         "normal_operating": {
           "hv_voltage_kv": { "min": 31.0, "max": 35.0 },
           "lv_voltage_kv": { "min": 10.5, "max": 11.5 },
-          "current_a": { "min": 0, "max": 524 },
-          "power_mw": { "min": 0, "max": 10.0 },
+          "current_a": { "min": 0, "max": 656 },
+          "power_mw": { "min": 0, "max": 11.25 },
           "temperature_degc": { "min": 20, "max": 85 },
           "frequency_hz": { "min": 49.5, "max": 50.5 }
         },
@@ -76,8 +76,8 @@
             "priority_low_low": "CRITICAL"
           },
           "current": {
-            "high_high": 580,
-            "high": 524,
+            "high_high": 722,
+            "high": 656,
             "low": 0,
             "low_low": -1,
             "unit": "A",
@@ -87,8 +87,8 @@
             "priority_low_low": "LOW"
           },
           "power_mw": {
-            "high_high": 11.0,
-            "high": 10.0,
+            "high_high": 12.38,
+            "high": 11.25,
             "low": 0,
             "low_low": -1,
             "unit": "MW",
@@ -134,8 +134,8 @@
           "cable_length_km": 4.2,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 10, "max": 180 },
-            "power_mw": { "min": 0.1, "max": 2.0 },
+            "current_a": { "min": 5, "max": 90 },
+            "power_mw": { "min": 0.08, "max": 1.54 },
             "power_factor": { "min": 0.8, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -152,8 +152,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 220,
-              "high": 180,
+              "high_high": 108,
+              "high": 90,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -163,8 +163,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 2.4,
-              "high": 2.0,
+              "high_high": 1.85,
+              "high": 1.54,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -215,8 +215,8 @@
           "cable_length_km": 5.1,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 15, "max": 210 },
-            "power_mw": { "min": 0.2, "max": 2.5 },
+            "current_a": { "min": 9, "max": 113 },
+            "power_mw": { "min": 0.15, "max": 1.93 },
             "power_factor": { "min": 0.82, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -233,8 +233,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 260,
-              "high": 210,
+              "high_high": 135,
+              "high": 113,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -244,8 +244,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 3.0,
-              "high": 2.5,
+              "high_high": 2.31,
+              "high": 1.93,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -303,8 +303,8 @@
           "cable_length_km": 3.8,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 20, "max": 190 },
-            "power_mw": { "min": 0.2, "max": 2.2 },
+            "current_a": { "min": 9, "max": 99 },
+            "power_mw": { "min": 0.15, "max": 1.69 },
             "power_factor": { "min": 0.85, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -321,8 +321,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 240,
-              "high": 190,
+              "high_high": 126,
+              "high": 99,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -332,8 +332,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 2.8,
-              "high": 2.2,
+              "high_high": 2.16,
+              "high": 1.69,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -383,8 +383,8 @@
           "cable_length_km": 6.3,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 20, "max": 230 },
-            "power_mw": { "min": 0.2, "max": 2.8 },
+            "current_a": { "min": 9, "max": 126 },
+            "power_mw": { "min": 0.15, "max": 2.16 },
             "power_factor": { "min": 0.8, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -401,8 +401,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 280,
-              "high": 230,
+              "high_high": 153,
+              "high": 126,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -412,8 +412,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 3.4,
-              "high": 2.8,
+              "high_high": 2.62,
+              "high": 2.16,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -479,8 +479,8 @@
           "cable_length_km": 7.2,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 50, "max": 290 },
-            "power_mw": { "min": 0.5, "max": 3.2 },
+            "current_a": { "min": 23, "max": 143 },
+            "power_mw": { "min": 0.39, "max": 2.46 },
             "power_factor": { "min": 0.78, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -497,8 +497,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 350,
-              "high": 290,
+              "high_high": 180,
+              "high": 143,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -508,8 +508,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 4.0,
-              "high": 3.2,
+              "high_high": 3.08,
+              "high": 2.46,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -577,16 +577,16 @@
       "is_feeder_map_substation": false,
       "transformer": {
         "id": "TR-SS02-T1",
-        "name": "T1 — 12.5MVA 33/11kV",
+        "name": "T1 — 16MVA 33/11kV",
         "slave_id": 7,
-        "rating_mva": 12.5,
+        "rating_mva": 16,
         "hv_kv": 33,
         "lv_kv": 11,
         "normal_operating": {
           "hv_voltage_kv": { "min": 31.0, "max": 35.0 },
           "lv_voltage_kv": { "min": 10.5, "max": 11.5 },
-          "current_a": { "min": 0, "max": 656 },
-          "power_mw": { "min": 0, "max": 12.5 },
+          "current_a": { "min": 0, "max": 840 },
+          "power_mw": { "min": 0, "max": 14.4 },
           "temperature_degc": { "min": 20, "max": 85 },
           "frequency_hz": { "min": 49.5, "max": 50.5 }
         },
@@ -603,8 +603,8 @@
             "priority_low_low": "CRITICAL"
           },
           "current": {
-            "high_high": 730,
-            "high": 656,
+            "high_high": 924,
+            "high": 840,
             "low": 0,
             "low_low": -1,
             "unit": "A",
@@ -614,8 +614,8 @@
             "priority_low_low": "LOW"
           },
           "power_mw": {
-            "high_high": 14.0,
-            "high": 12.5,
+            "high_high": 15.84,
+            "high": 14.4,
             "low": 0,
             "low_low": -1,
             "unit": "MW",
@@ -661,8 +661,8 @@
           "cable_length_km": 4.5,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 20, "max": 240 },
-            "power_mw": { "min": 0.2, "max": 2.8 },
+            "current_a": { "min": 8, "max": 111 },
+            "power_mw": { "min": 0.14, "max": 1.9 },
             "power_factor": { "min": 0.82, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -679,8 +679,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 290,
-              "high": 240,
+              "high_high": 134,
+              "high": 111,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -690,8 +690,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 3.4,
-              "high": 2.8,
+              "high_high": 2.3,
+              "high": 1.9,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -737,8 +737,8 @@
           "cable_length_km": 5.8,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 30, "max": 310 },
-            "power_mw": { "min": 0.3, "max": 3.6 },
+            "current_a": { "min": 12, "max": 142 },
+            "power_mw": { "min": 0.2, "max": 2.44 },
             "power_factor": { "min": 0.8, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -755,8 +755,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 370,
-              "high": 310,
+              "high_high": 170,
+              "high": 142,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -766,8 +766,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 4.3,
-              "high": 3.6,
+              "high_high": 2.91,
+              "high": 2.44,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -813,8 +813,8 @@
           "cable_length_km": 5.2,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 20, "max": 220 },
-            "power_mw": { "min": 0.2, "max": 2.6 },
+            "current_a": { "min": 8, "max": 103 },
+            "power_mw": { "min": 0.14, "max": 1.76 },
             "power_factor": { "min": 0.81, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -831,8 +831,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 270,
-              "high": 220,
+              "high_high": 122,
+              "high": 103,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -842,8 +842,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 3.1,
-              "high": 2.6,
+              "high_high": 2.1,
+              "high": 1.76,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -889,8 +889,8 @@
           "cable_length_km": 6.1,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 30, "max": 340 },
-            "power_mw": { "min": 0.3, "max": 4.0 },
+            "current_a": { "min": 12, "max": 158 },
+            "power_mw": { "min": 0.2, "max": 2.71 },
             "power_factor": { "min": 0.8, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -907,8 +907,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 410,
-              "high": 340,
+              "high_high": 190,
+              "high": 158,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -918,8 +918,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 4.8,
-              "high": 4.0,
+              "high_high": 3.25,
+              "high": 2.71,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -965,8 +965,8 @@
           "cable_length_km": 4.9,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 25, "max": 260 },
-            "power_mw": { "min": 0.3, "max": 3.0 },
+            "current_a": { "min": 12, "max": 118 },
+            "power_mw": { "min": 0.2, "max": 2.03 },
             "power_factor": { "min": 0.83, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -983,8 +983,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 310,
-              "high": 260,
+              "high_high": 142,
+              "high": 118,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -994,8 +994,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 3.6,
-              "high": 3.0,
+              "high_high": 2.44,
+              "high": 2.03,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -1041,8 +1041,8 @@
           "cable_length_km": 3.9,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 13, "max": 234 },
-            "power_mw": { "min": 0.1, "max": 2.6 },
+            "current_a": { "min": 4, "max": 103 },
+            "power_mw": { "min": 0.07, "max": 1.76 },
             "power_factor": { "min": 0.8, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -1059,8 +1059,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 286,
-              "high": 234,
+              "high_high": 122,
+              "high": 103,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -1070,8 +1070,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 3.1,
-              "high": 2.6,
+              "high_high": 2.1,
+              "high": 1.76,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -1118,16 +1118,16 @@
       "is_feeder_map_substation": false,
       "transformer": {
         "id": "TR-SS03-T1",
-        "name": "T1 — 16MVA 33/11kV",
+        "name": "T1 — 20MVA 33/11kV",
         "slave_id": 14,
-        "rating_mva": 16,
+        "rating_mva": 20,
         "hv_kv": 33,
         "lv_kv": 11,
         "normal_operating": {
           "hv_voltage_kv": { "min": 31.0, "max": 35.0 },
           "lv_voltage_kv": { "min": 10.5, "max": 11.5 },
-          "current_a": { "min": 0, "max": 840 },
-          "power_mw": { "min": 0, "max": 16.0 },
+          "current_a": { "min": 0, "max": 1050 },
+          "power_mw": { "min": 0, "max": 18.0 },
           "temperature_degc": { "min": 20, "max": 85 },
           "frequency_hz": { "min": 49.5, "max": 50.5 }
         },
@@ -1144,8 +1144,8 @@
             "priority_low_low": "CRITICAL"
           },
           "current": {
-            "high_high": 920,
-            "high": 840,
+            "high_high": 1155,
+            "high": 1050,
             "low": 0,
             "low_low": -1,
             "unit": "A",
@@ -1155,8 +1155,8 @@
             "priority_low_low": "LOW"
           },
           "power_mw": {
-            "high_high": 18.0,
-            "high": 16.0,
+            "high_high": 19.8,
+            "high": 18.0,
             "low": 0,
             "low_low": -1,
             "unit": "MW",
@@ -1202,8 +1202,8 @@
           "cable_length_km": 5.5,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 40, "max": 390 },
-            "power_mw": { "min": 0.4, "max": 4.5 },
+            "current_a": { "min": 13, "max": 146 },
+            "power_mw": { "min": 0.22, "max": 2.5 },
             "power_factor": { "min": 0.82, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -1220,8 +1220,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 470,
-              "high": 390,
+              "high_high": 176,
+              "high": 146,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -1231,8 +1231,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 5.4,
-              "high": 4.5,
+              "high_high": 3.01,
+              "high": 2.5,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -1278,8 +1278,8 @@
           "cable_length_km": 3.2,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 80, "max": 460 },
-            "power_mw": { "min": 1.0, "max": 5.3 },
+            "current_a": { "min": 33, "max": 172 },
+            "power_mw": { "min": 0.56, "max": 2.95 },
             "power_factor": { "min": 0.85, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -1296,8 +1296,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 550,
-              "high": 460,
+              "high_high": 208,
+              "high": 172,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -1307,8 +1307,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 6.4,
-              "high": 5.3,
+              "high_high": 3.56,
+              "high": 2.95,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -1354,8 +1354,8 @@
           "cable_length_km": 6.4,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 30, "max": 280 },
-            "power_mw": { "min": 0.3, "max": 3.3 },
+            "current_a": { "min": 10, "max": 107 },
+            "power_mw": { "min": 0.17, "max": 1.84 },
             "power_factor": { "min": 0.8, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -1372,8 +1372,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 340,
-              "high": 280,
+              "high_high": 130,
+              "high": 107,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -1383,8 +1383,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 4.0,
-              "high": 3.3,
+              "high_high": 2.23,
+              "high": 1.84,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -1430,8 +1430,8 @@
           "cable_length_km": 4.8,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 25, "max": 255 },
-            "power_mw": { "min": 0.3, "max": 3.0 },
+            "current_a": { "min": 10, "max": 97 },
+            "power_mw": { "min": 0.17, "max": 1.67 },
             "power_factor": { "min": 0.82, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -1448,8 +1448,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 310,
-              "high": 255,
+              "high_high": 117,
+              "high": 97,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -1459,8 +1459,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 3.6,
-              "high": 3.0,
+              "high_high": 2.0,
+              "high": 1.67,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -1506,8 +1506,8 @@
           "cable_length_km": 5.9,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 35, "max": 355 },
-            "power_mw": { "min": 0.4, "max": 4.1 },
+            "current_a": { "min": 13, "max": 133 },
+            "power_mw": { "min": 0.22, "max": 2.28 },
             "power_factor": { "min": 0.81, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -1524,8 +1524,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 430,
-              "high": 355,
+              "high_high": 159,
+              "high": 133,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -1535,8 +1535,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 4.9,
-              "high": 4.1,
+              "high_high": 2.73,
+              "high": 2.28,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -1582,8 +1582,8 @@
           "cable_length_km": 6.2,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 20, "max": 286 },
-            "power_mw": { "min": 0.3, "max": 3.4 },
+            "current_a": { "min": 10, "max": 110 },
+            "power_mw": { "min": 0.17, "max": 1.89 },
             "power_factor": { "min": 0.82, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -1600,8 +1600,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 354,
-              "high": 286,
+              "high_high": 133,
+              "high": 110,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -1611,8 +1611,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 4.1,
-              "high": 3.4,
+              "high_high": 2.28,
+              "high": 1.89,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -1658,8 +1658,8 @@
           "cable_length_km": 4.8,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 72, "max": 417 },
-            "power_mw": { "min": 0.7, "max": 4.6 },
+            "current_a": { "min": 23, "max": 149 },
+            "power_mw": { "min": 0.39, "max": 2.56 },
             "power_factor": { "min": 0.78, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -1676,8 +1676,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 503,
-              "high": 417,
+              "high_high": 185,
+              "high": 149,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -1687,8 +1687,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 5.7,
-              "high": 4.6,
+              "high_high": 3.17,
+              "high": 2.56,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -1735,16 +1735,16 @@
       "is_feeder_map_substation": false,
       "transformer": {
         "id": "TR-SS04-T1",
-        "name": "T1 — 16MVA 33/11kV",
+        "name": "T1 — 20MVA 33/11kV",
         "slave_id": 22,
-        "rating_mva": 16,
+        "rating_mva": 20,
         "hv_kv": 33,
         "lv_kv": 11,
         "normal_operating": {
           "hv_voltage_kv": { "min": 31.0, "max": 35.0 },
           "lv_voltage_kv": { "min": 10.5, "max": 11.5 },
-          "current_a": { "min": 0, "max": 840 },
-          "power_mw": { "min": 0, "max": 16.0 },
+          "current_a": { "min": 0, "max": 1050 },
+          "power_mw": { "min": 0, "max": 18.0 },
           "temperature_degc": { "min": 20, "max": 85 },
           "frequency_hz": { "min": 49.5, "max": 50.5 }
         },
@@ -1761,8 +1761,8 @@
             "priority_low_low": "CRITICAL"
           },
           "current": {
-            "high_high": 920,
-            "high": 840,
+            "high_high": 1155,
+            "high": 1050,
             "low": 0,
             "low_low": -1,
             "unit": "A",
@@ -1772,8 +1772,8 @@
             "priority_low_low": "LOW"
           },
           "power_mw": {
-            "high_high": 18.0,
-            "high": 16.0,
+            "high_high": 19.8,
+            "high": 18.0,
             "low": 0,
             "low_low": -1,
             "unit": "MW",
@@ -1819,8 +1819,8 @@
           "cable_length_km": 3.6,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 12, "max": 216 },
-            "power_mw": { "min": 0.1, "max": 2.4 },
+            "current_a": { "min": 4, "max": 99 },
+            "power_mw": { "min": 0.07, "max": 1.7 },
             "power_factor": { "min": 0.8, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -1837,8 +1837,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 264,
-              "high": 216,
+              "high_high": 120,
+              "high": 99,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -1848,8 +1848,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 2.9,
-              "high": 2.4,
+              "high_high": 2.06,
+              "high": 1.7,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -1895,8 +1895,8 @@
           "cable_length_km": 4.2,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 14, "max": 243 },
-            "power_mw": { "min": 0.1, "max": 2.7 },
+            "current_a": { "min": 4, "max": 112 },
+            "power_mw": { "min": 0.07, "max": 1.92 },
             "power_factor": { "min": 0.8, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -1913,8 +1913,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 297,
-              "high": 243,
+              "high_high": 132,
+              "high": 112,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -1924,8 +1924,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 3.2,
-              "high": 2.7,
+              "high_high": 2.27,
+              "high": 1.92,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -1971,8 +1971,8 @@
           "cable_length_km": 2.9,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 38, "max": 363 },
-            "power_mw": { "min": 0.4, "max": 4.2 },
+            "current_a": { "min": 16, "max": 174 },
+            "power_mw": { "min": 0.28, "max": 2.98 },
             "power_factor": { "min": 0.85, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -1989,8 +1989,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 458,
-              "high": 363,
+              "high_high": 220,
+              "high": 174,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -2000,8 +2000,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 5.3,
-              "high": 4.2,
+              "high_high": 3.77,
+              "high": 2.98,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -2047,8 +2047,8 @@
           "cable_length_km": 5.1,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 12, "max": 207 },
-            "power_mw": { "min": 0.1, "max": 2.3 },
+            "current_a": { "min": 4, "max": 95 },
+            "power_mw": { "min": 0.07, "max": 1.63 },
             "power_factor": { "min": 0.8, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -2065,8 +2065,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 253,
-              "high": 207,
+              "high_high": 116,
+              "high": 95,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -2076,8 +2076,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 2.8,
-              "high": 2.3,
+              "high_high": 1.99,
+              "high": 1.63,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -2123,8 +2123,8 @@
           "cable_length_km": 7.4,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 19, "max": 260 },
-            "power_mw": { "min": 0.2, "max": 3.1 },
+            "current_a": { "min": 8, "max": 128 },
+            "power_mw": { "min": 0.14, "max": 2.2 },
             "power_factor": { "min": 0.82, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -2141,8 +2141,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 322,
-              "high": 260,
+              "high_high": 153,
+              "high": 128,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -2152,8 +2152,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 3.7,
-              "high": 3.1,
+              "high_high": 2.63,
+              "high": 2.2,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -2199,8 +2199,8 @@
           "cable_length_km": 3.3,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 13, "max": 185 },
-            "power_mw": { "min": 0.2, "max": 2.2 },
+            "current_a": { "min": 8, "max": 91 },
+            "power_mw": { "min": 0.14, "max": 1.56 },
             "power_factor": { "min": 0.82, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -2217,8 +2217,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 229,
-              "high": 185,
+              "high_high": 108,
+              "high": 91,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -2228,8 +2228,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 2.6,
-              "high": 2.2,
+              "high_high": 1.85,
+              "high": 1.56,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -2275,8 +2275,8 @@
           "cable_length_km": 4.0,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 26, "max": 250 },
-            "power_mw": { "min": 0.3, "max": 2.9 },
+            "current_a": { "min": 12, "max": 120 },
+            "power_mw": { "min": 0.21, "max": 2.06 },
             "power_factor": { "min": 0.85, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -2293,8 +2293,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 316,
-              "high": 250,
+              "high_high": 153,
+              "high": 120,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -2304,8 +2304,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 3.7,
-              "high": 2.9,
+              "high_high": 2.63,
+              "high": 2.06,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -2351,8 +2351,8 @@
           "cable_length_km": 4.6,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 16, "max": 218 },
-            "power_mw": { "min": 0.2, "max": 2.6 },
+            "current_a": { "min": 8, "max": 108 },
+            "power_mw": { "min": 0.14, "max": 1.85 },
             "power_factor": { "min": 0.82, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -2369,8 +2369,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 270,
-              "high": 218,
+              "high_high": 128,
+              "high": 108,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -2380,8 +2380,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 3.1,
-              "high": 2.6,
+              "high_high": 2.2,
+              "high": 1.85,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -2437,7 +2437,7 @@
           "hv_voltage_kv": { "min": 31.0, "max": 35.0 },
           "lv_voltage_kv": { "min": 10.5, "max": 11.5 },
           "current_a": { "min": 0, "max": 1050 },
-          "power_mw": { "min": 0, "max": 20.0 },
+          "power_mw": { "min": 0, "max": 18.0 },
           "temperature_degc": { "min": 20, "max": 85 },
           "frequency_hz": { "min": 49.5, "max": 50.5 }
         },
@@ -2454,7 +2454,7 @@
             "priority_low_low": "CRITICAL"
           },
           "current": {
-            "high_high": 1150,
+            "high_high": 1155,
             "high": 1050,
             "low": 0,
             "low_low": -1,
@@ -2465,8 +2465,8 @@
             "priority_low_low": "LOW"
           },
           "power_mw": {
-            "high_high": 22.5,
-            "high": 20.0,
+            "high_high": 19.8,
+            "high": 18.0,
             "low": 0,
             "low_low": -1,
             "unit": "MW",
@@ -2512,8 +2512,8 @@
           "cable_length_km": 3.2,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 69, "max": 399 },
-            "power_mw": { "min": 0.7, "max": 4.4 },
+            "current_a": { "min": 22, "max": 138 },
+            "power_mw": { "min": 0.38, "max": 2.36 },
             "power_factor": { "min": 0.78, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -2530,8 +2530,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 481,
-              "high": 399,
+              "high_high": 172,
+              "high": 138,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -2541,8 +2541,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 5.5,
-              "high": 4.4,
+              "high_high": 2.95,
+              "high": 2.36,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -2588,8 +2588,8 @@
           "cable_length_km": 4.1,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 62, "max": 362 },
-            "power_mw": { "min": 0.6, "max": 4.0 },
+            "current_a": { "min": 19, "max": 125 },
+            "power_mw": { "min": 0.32, "max": 2.14 },
             "power_factor": { "min": 0.78, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -2606,8 +2606,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 438,
-              "high": 362,
+              "high_high": 156,
+              "high": 125,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -2617,8 +2617,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 5.0,
-              "high": 4.0,
+              "high_high": 2.68,
+              "high": 2.14,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -2664,8 +2664,8 @@
           "cable_length_km": 5.5,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 27, "max": 259 },
-            "power_mw": { "min": 0.3, "max": 3.0 },
+            "current_a": { "min": 9, "max": 94 },
+            "power_mw": { "min": 0.16, "max": 1.61 },
             "power_factor": { "min": 0.85, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -2682,8 +2682,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 327,
-              "high": 259,
+              "high_high": 119,
+              "high": 94,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -2693,8 +2693,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 3.8,
-              "high": 3.0,
+              "high_high": 2.04,
+              "high": 1.61,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -2740,8 +2740,8 @@
           "cable_length_km": 6.8,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 75, "max": 435 },
-            "power_mw": { "min": 0.7, "max": 4.8 },
+            "current_a": { "min": 22, "max": 150 },
+            "power_mw": { "min": 0.38, "max": 2.57 },
             "power_factor": { "min": 0.78, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -2758,8 +2758,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 525,
-              "high": 435,
+              "high_high": 188,
+              "high": 150,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -2769,8 +2769,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 6.0,
-              "high": 4.8,
+              "high_high": 3.22,
+              "high": 2.57,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -2816,8 +2816,8 @@
           "cable_length_km": 5.9,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 11, "max": 198 },
-            "power_mw": { "min": 0.1, "max": 2.2 },
+            "current_a": { "min": 3, "max": 69 },
+            "power_mw": { "min": 0.05, "max": 1.18 },
             "power_factor": { "min": 0.8, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -2834,8 +2834,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 242,
-              "high": 198,
+              "high_high": 81,
+              "high": 69,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -2845,8 +2845,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 2.6,
-              "high": 2.2,
+              "high_high": 1.39,
+              "high": 1.18,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -2892,8 +2892,8 @@
           "cable_length_km": 3.7,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 10, "max": 180 },
-            "power_mw": { "min": 0.1, "max": 2.0 },
+            "current_a": { "min": 3, "max": 62 },
+            "power_mw": { "min": 0.05, "max": 1.07 },
             "power_factor": { "min": 0.8, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -2910,8 +2910,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 220,
-              "high": 180,
+              "high_high": 75,
+              "high": 62,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -2921,8 +2921,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 2.4,
-              "high": 2.0,
+              "high_high": 1.29,
+              "high": 1.07,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -2968,8 +2968,8 @@
           "cable_length_km": 2.8,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 9, "max": 162 },
-            "power_mw": { "min": 0.1, "max": 1.8 },
+            "current_a": { "min": 3, "max": 56 },
+            "power_mw": { "min": 0.05, "max": 0.96 },
             "power_factor": { "min": 0.8, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -2986,8 +2986,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 198,
-              "high": 162,
+              "high_high": 69,
+              "high": 56,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -2997,8 +2997,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 2.2,
-              "high": 1.8,
+              "high_high": 1.18,
+              "high": 0.96,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -3044,8 +3044,8 @@
           "cable_length_km": 4.4,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 15, "max": 210 },
-            "power_mw": { "min": 0.2, "max": 2.5 },
+            "current_a": { "min": 6, "max": 78 },
+            "power_mw": { "min": 0.11, "max": 1.34 },
             "power_factor": { "min": 0.82, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -3062,8 +3062,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 260,
-              "high": 210,
+              "high_high": 94,
+              "high": 78,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -3073,8 +3073,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 3.0,
-              "high": 2.5,
+              "high_high": 1.61,
+              "high": 1.34,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -3120,8 +3120,8 @@
           "cable_length_km": 5.0,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 14, "max": 202 },
-            "power_mw": { "min": 0.2, "max": 2.4 },
+            "current_a": { "min": 6, "max": 75 },
+            "power_mw": { "min": 0.11, "max": 1.29 },
             "power_factor": { "min": 0.82, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -3138,8 +3138,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 250,
-              "high": 202,
+              "high_high": 90,
+              "high": 75,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -3149,8 +3149,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 2.9,
-              "high": 2.4,
+              "high_high": 1.55,
+              "high": 1.29,
               "low": 0,
               "low_low": -1,
               "unit": "MW",
@@ -3196,8 +3196,8 @@
           "cable_length_km": 6.3,
           "normal_operating": {
             "voltage_kv": { "min": 10.5, "max": 11.5 },
-            "current_a": { "min": 13, "max": 176 },
-            "power_mw": { "min": 0.2, "max": 2.1 },
+            "current_a": { "min": 6, "max": 66 },
+            "power_mw": { "min": 0.11, "max": 1.13 },
             "power_factor": { "min": 0.82, "max": 1.0 },
             "frequency_hz": { "min": 49.5, "max": 50.5 }
           },
@@ -3214,8 +3214,8 @@
               "priority_low_low": "CRITICAL"
             },
             "current": {
-              "high_high": 218,
-              "high": 176,
+              "high_high": 78,
+              "high": 66,
               "low": 0,
               "low_low": -1,
               "unit": "A",
@@ -3225,8 +3225,8 @@
               "priority_low_low": "LOW"
             },
             "power_mw": {
-              "high_high": 2.5,
-              "high": 2.1,
+              "high_high": 1.34,
+              "high": 1.13,
               "low": 0,
               "low_low": -1,
               "unit": "MW",

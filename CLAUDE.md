@@ -44,6 +44,10 @@ Adding a feeder renumbers every later station: edit the JSON, then delete scada.
 Registers (same for every slave): 40001 voltage kV x100, 40002 current A x10,
 40003 power MW x100, 40004 power factor x100, 40005 temperature C x10 (transformer only),
 40006 frequency Hz x100, 40100 breaker state (0 OPEN, 1 CLOSED, 2 TRIPPED, 3 UNKNOWN).
+Wire addresses are 0-based (Modbus convention, what Wireshark shows): 40001-40006 = 0-5,
+40100 = 99. pymodbus adds 1 internally on both reads and writes; leave the datastore at 0.
+Values are clamped to 0-65535: one out-of-range register makes the whole read fail.
+An OFFLINE device answers Modbus exception 0x0B (Gateway Target Device Failed to Respond).
 DNP3: master address 1, outstation address 100 + substation number (SS-01 = 101 ... SS-05 = 105).
 Point index 0 = transformer breaker, N = feeder N breaker. CROB code 0x81 = trip/OPEN,
 0x41 = close. Select-before-operate, select timeout 10 s.
@@ -83,8 +87,8 @@ The client purges rows older than RETENTION_HOURS = 30 every 10 min (~600 MB ste
 - BREAKER_OPEN counts as authorised only if an OPEN command was EXECUTING/EXECUTED in the last 60 s.
   A CLOSE with no command is not detected.
 - Analog alarms still fire on de-energised equipment (only FREEZE is suppressed).
-- Power factor varies so little in the simulator that it repeats 5 polls by chance and raises
-  MEDIUM FREEZE alarms (about half of all freeze alarms). Pre-existing, not yet fixed.
+- FREEZE is checked only on voltage, current and power_mw (FREEZE_PARAMETERS). PF and
+  frequency at 0.01 resolution and transformer oil temperature can legitimately hold steady.
 
 ## Control safety (dnp3_controller.py)
 Commands expire after COMMAND_TTL = 30 s. Status: PENDING -> EXECUTING -> EXECUTED | FAILED | EXPIRED.
@@ -111,12 +115,18 @@ systemd/ holds copies of all four installed units; re-copy them after changing /
 - The HMI is served from templates/hmi.html. Hard-refresh the browser (Ctrl+Shift+R) after changes.
 
 ## Simulator behaviour to know
+Electrical model (the SLD numbers add up): feeder V = its station's 11 kV bus, P from the
+load curve, I = P/(sqrt3 V pf). Transformer P, Q = sum of feeders x losses (1.01, 1.03),
+I = S/(sqrt3 V), pf = P/S, oil temp = 30 + 50 x loading^1.6 reached with a 600 s lag.
+Transformers 12.5/16/20/20/20 MVA; feeder loads are scaled so each station peaks at ~75%.
+Feeder current limits = their MW limits converted at 11 kV, pf 0.9. A feeder treats its bus as
+dead until the transformer has published a live bus voltage (avoids I = P/0 after a reclose).
 LOAD_CEILING 0.88 keeps normal peak load below the HIGH limits. FAILURE_GAP (300-600 s) sets
 how often offline / freeze / trip failures are injected. Injected trips auto-reclose after 25-50 s;
 freeze injection only hits voltage, current and MW. Values follow breaker state: open
 feeder = 0 A and 0 MW; open transformer = whole bus dead. Spike probability is 0.001.
-Transformer values are generated on their own, NOT as the sum of its feeders, so the SLD
-transformer MW does not equal the feeder total. Known realism gap.
+OFFLINE sets RtuContext.offline, so validate() refuses requests; never remove a slave from the
+server context (pymodbus drops unknown unit ids silently -> 3 s client timeouts, 9 s cycles).
 
 ## Mistakes already made (do not repeat)
 - Clearing logic once dropped tracking for manual alarms, so breaches raised duplicates. Fixed.
@@ -126,6 +136,10 @@ transformer MW does not equal the feeder total. Known realism gap.
 - .gitignore (Python template) ignored lib/, so lib/dnp3lite.py was never committed. Fixed.
 - Files edited by Claude Code end up owned by akash. Always run the chown/chmod lines before restarting.
   On 2026-11-09 this had left scada-server crash-looping (Permission denied) for a week.
+- Until 2026-11-11 the OFFLINE failure only stopped register updates, so the server kept
+  answering with stale values: OFFLINE alarms never fired and outages showed up as FREEZE.
+- ModbusServerContext keeps a reference to the slaves dict; deleting from it deleted the
+  simulator's own context too and crashed every thread. Caught in a scratchpad test.
 - 2026-11-11: Claude opened scada.db read-only as akash to check it, recreated the WAL side
   files as akash, and crash-looped scada-client for ~40 s. Fixed with wal_keeper + the rule above.
 - The old live-value query (MAX(id) GROUP BY over readings) took 2 s at 322k rows. Never read live
@@ -135,11 +149,12 @@ transformer MW does not equal the feeder total. Known realism gap.
 Done: Modbus monitoring, 4-level alarms, historian + /api/trends, failure detection, SOE,
 station HMI with SLD, DNP3 control with confirm step, unauthorised-control detection,
 bulk "clear returned-to-normal" button, firewalld + restricted service user,
-5 substations / 41 devices, real-time table, historian retention.
+5 substations / 41 devices, real-time table, historian retention, 0-based Modbus addressing,
+electrically consistent simulator (transformer = sum of feeders), real OFFLINE failures.
 Next: SS-01 feeder map (/api/feedermap/SS-01 already returns nodes and impact; needs the
 HMI view with fault animation). Later ideas: state-based alarm suppression for out-of-service
-equipment, SOE tab in the HMI, README refresh, login for the HMI, transformer = sum of feeders,
-fix power-factor false freezes.
+equipment, SOE tab in the HMI, README refresh, login for the HMI, DNP3 event polling
+(outstation-timestamped SOE; today SOE times are poll times, ~3 s resolution).
 Known gaps: operator name is free text (no real authentication), DNP3 is a subset.
 
 ## Working style that suits the owner

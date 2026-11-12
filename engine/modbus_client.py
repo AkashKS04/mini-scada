@@ -53,13 +53,14 @@ RETENTION_EVERY_SECONDS = 600
 # ─────────────────────────────────────────────
 # Register addresses
 # ─────────────────────────────────────────────
-REG_VOLTAGE      = 1
-REG_CURRENT      = 2
-REG_POWER_MW     = 3
-REG_POWER_FACTOR = 4
-REG_TEMPERATURE  = 5
-REG_FREQUENCY    = 6
-REG_BREAKER      = 100
+# 0-based wire addresses, Modbus convention: 40001 = address 0, 40100 = 99
+REG_VOLTAGE      = 0
+REG_CURRENT      = 1
+REG_POWER_MW     = 2
+REG_POWER_FACTOR = 3
+REG_TEMPERATURE  = 4
+REG_FREQUENCY    = 5
+REG_BREAKER      = 99
 
 # Register scale factors (divide raw value by scale to get real value)
 REG_SCALES = {
@@ -164,6 +165,11 @@ device_comms_status = {sid: 'online' for sid in device_registry}
 
 OFFLINE_THRESHOLD = 3
 FREEZE_THRESHOLD  = 5
+
+# Only values that change on every sample of a live feeder are checked for
+# freeze. Power factor and frequency at 0.01 resolution, and transformer oil
+# temperature, can legitimately hold one value for 15 s on a steady load.
+FREEZE_PARAMETERS = ('voltage', 'current', 'power_mw')
 
 
 # ─────────────────────────────────────────────
@@ -765,12 +771,15 @@ def check_freeze(dev, parameter, value):
     key = (sid, parameter)
 
     # A de-energised device legitimately reads constant zeros, so it is never
-    # "frozen": reset the tracker and drop any freeze alarm raised earlier
-    if not is_energised(dev):
+    # "frozen": reset the tracker and drop any freeze alarm raised earlier.
+    # Same for parameters that are not freeze-monitored at all.
+    monitored = parameter in FREEZE_PARAMETERS
+    if not monitored or not is_energised(dev):
         freeze_tracker.pop(key, None)
         if key in freeze_alarms:
+            why = "device de-energised" if monitored else "not freeze-monitored"
             clear_alarm(freeze_alarms[key], dev,
-                        f"{parameter.upper()} device de-energised", auto=True)
+                        f"{parameter.upper()} {why}", auto=True)
             del freeze_alarms[key]
             if (not [k for k in freeze_alarms if k[0] == sid]
                     and device_comms_status.get(sid) == 'frozen'):
