@@ -49,6 +49,14 @@
       "voltage_level": "33/11kV",
       "is_feeder_map_substation": true,
       "_comment": "This substation gets the full feeder map with load connectivity",
+      "da_rtu": { "slave_id": 42, "name": "RJN DA RTU (RMU switch status)" },
+      "_ties_comment": "Normally-open tie switches between feeders, used by FLISR to backfeed. via = drawing control point in map coordinates",
+      "ties": [
+        { "id": "NOP-1", "a": { "feeder": 1, "node": 4 }, "b": { "feeder": 3, "node": 3 }, "via": [600, 70] },
+        { "id": "NOP-2", "a": { "feeder": 2, "node": 3 }, "b": { "feeder": 3, "node": 1 } },
+        { "id": "NOP-3", "a": { "feeder": 4, "node": 3 }, "b": { "feeder": 2, "node": 3 }, "via": [400, 250] },
+        { "id": "NOP-4", "a": { "feeder": 5, "node": 4 }, "b": { "feeder": 4, "node": 3 }, "via": [470, 330] }
+      ],
       "transformer": {
         "id": "TR-SS01-T1",
         "name": "T1 — 12.5MVA 33/11kV",

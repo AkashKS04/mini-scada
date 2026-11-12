@@ -18,9 +18,17 @@ that is the number Wireshark shows.
                       node N), as a protection relay's fault locator reports it
     40100 (addr 99) → Breaker State (0=OPEN, 1=CLOSED, 2=TRIPPED, 3=UNKNOWN)
 
-Test set (127.0.0.1:20001): one JSON line {"cmd": "trip", "slave_id": 3,
-"section": 2} injects a fault the way a secondary-injection test set would.
-It stays tripped until an operator closes the breaker over DNP3.
+Test set (127.0.0.1:20001), one JSON line per request:
+    {"cmd": "trip",   "slave_id": 3, "section": 2}   put a fault on a feeder
+    {"cmd": "repair", "slave_id": 3}                 crew has repaired it
+A fault stays in place until repaired. Closing a breaker or switch that
+energises a faulted section trips the breaker feeding it again.
+
+Feeder-map stations (lib/topology.py): a DA RTU slave reports every RMU and
+tie switch (register address = switch index, 1 = CLOSED) and the switches
+are DNP3 points 10+ on the station outstation. A feeder's MW is the demand of
+the load nodes its breaker actually supplies, including nodes backfed through
+a tie from another feeder.
 
 Electrical model (so the numbers on the SLD add up):
     Feeder      V = its station's 11 kV bus voltage, P from the load curve,
@@ -198,6 +206,20 @@ for slave_id in device_registry:
     )
     # All breakers start CLOSED
     device_contexts[slave_id].setValues(3, REG_BREAKER, [BREAKER_CLOSED])
+
+# Feeder-map stations: network topology and a DA RTU with one register per switch
+sys.path.insert(0, os.path.join(BASE_DIR, 'lib'))
+import topology  # noqa: E402
+
+TOPOLOGIES     = topology.build(CONFIG)                         # {ss_id: Topology}
+topo_of_feeder = {f: t for t in TOPOLOGIES.values() for f in t.feeders}
+for _t in TOPOLOGIES.values():
+    device_contexts[_t.da_slave] = RtuContext(
+        hr=ModbusSequentialDataBlock(0, [0] * max(REGISTER_COUNT, len(_t.switches) + 1)))
+    device_contexts[_t.da_slave].setValues(3, 0, [sw['normal'] for sw in _t.switches])
+
+# Natural demand of each feeder (MW) from its load curve, set by its own thread
+feeder_demand = {}
 
 context = ModbusServerContext(slaves=device_contexts, single=False)
 
@@ -381,10 +403,83 @@ def apply_breaker_command(slave_id, command):
         return False, "unsupported command"
 
     store.setValues(3, REG_BREAKER, [new_state])
-    if new_state == BREAKER_CLOSED:
-        store.setValues(3, REG_FAULT_SECTION, [0])   # fault repaired, feeder restored
     print(f"\n[CONTROL] Slave {slave_id} ({device['name']}) breaker -> {command}\n")
+
+    if new_state == BREAKER_CLOSED:
+        if device['type'] == 'feeder' and slave_id not in topo_of_feeder \
+                and store.getValues(3, REG_FAULT_SECTION, count=1)[0]:
+            store.setValues(3, REG_BREAKER, [BREAKER_TRIPPED])
+            print(f"[PROTECTION] {device['name']} closed onto a fault -> TRIPPED")
+            return True, "executed; protection tripped it again (closed onto fault)"
+        for t in TOPOLOGIES.values():
+            if t.ss_id == device['substation'] and slave_id in protection(t):
+                return True, "executed; protection tripped it again (closed onto fault)"
     return True, "executed"
+
+
+def apply_control(target, command):
+    """DNP3 outstation entry point: int = breaker (slave id), str = switch id."""
+    if isinstance(target, str):
+        return apply_switch_command(target, command)
+    return apply_breaker_command(target, command)
+
+
+def apply_switch_command(switch_id, command):
+    t = next((t for t in TOPOLOGIES.values() if switch_id in t.by_id), None)
+    if t is None:
+        return False, "unknown switch"
+    sw    = t.by_id[switch_id]
+    store = device_contexts[t.da_slave]
+    state = store.getValues(3, sw['index'], count=1)[0]
+    want  = {"OPEN": topology.OPEN, "CLOSE": topology.CLOSED}.get(command)
+    if want is None:
+        return False, "unsupported command"
+    if state == want:
+        return False, f"already {'closed' if want else 'open'}"
+    store.setValues(3, sw['index'], [want])
+    print(f"\n[CONTROL] Switch {switch_id} ({sw['name']}) -> {command}\n")
+    tripped = protection(t)
+    if tripped:
+        return True, f"executed; protection tripped slave {tripped} (energised a fault)"
+    return True, "executed"
+
+
+# ─────────────────────────────────────────────
+# Network state of feeder-map stations
+# ─────────────────────────────────────────────
+def breaker_state(slave_id):
+    return device_contexts[slave_id].getValues(3, REG_BREAKER, count=1)[0]
+
+
+def network(t):
+    regs   = device_contexts[t.da_slave].getValues(3, 0, count=len(t.switches))
+    sw     = {s['id']: regs[s['index']] for s in t.switches}
+    faults = {f: device_contexts[f].getValues(3, REG_FAULT_SECTION, count=1)[0] for f in t.feeders}
+    return t.energise(breaker_state(transformer_of[t.ss_id]) == BREAKER_CLOSED,
+                      {f: breaker_state(f) == BREAKER_CLOSED for f in t.feeders}, sw, faults)
+
+
+def protection(t):
+    """
+    Trip every breaker that feeds a faulted section, e.g. after closing onto
+    a fault or backfeeding into one through a tie. Returns the tripped slave ids.
+    """
+    tripped = []
+    for src, (f, k) in network(t)['faulted']:
+        if src not in tripped and breaker_state(src) == BREAKER_CLOSED:
+            device_contexts[src].setValues(3, REG_BREAKER, [BREAKER_TRIPPED])
+            tripped.append(src)
+            print(f"[PROTECTION] Slave {src} fed faulted section {k} of slave {f} -> TRIPPED")
+    return tripped
+
+
+def supplied_mw(t, slave_id):
+    """Demand of the load nodes this feeder breaker supplies right now (MW)."""
+    total = 0.0
+    for (f, i), src in network(t)['nodes'].items():
+        if src == slave_id:
+            total += feeder_demand.get(f, 0.0) * t.node_kw(f, i) / t.feeders[f]['total_kw']
+    return total
 
 
 def trip_feeder(slave_id, section=None):
@@ -410,7 +505,22 @@ def trip_feeder(slave_id, section=None):
     store.setValues(3, REG_POWER_MW, [0])
     print(f"\n[FAILURE] ⚡ Slave {slave_id} ({device['name']}) → FAULT in section "
           f"{section}, BREAKER TRIPPED\n")
+    if slave_id in topo_of_feeder:
+        protection(topo_of_feeder[slave_id])     # a tie may be feeding it too
     return True, f"tripped, fault in section {section}"
+
+
+def repair_feeder(slave_id):
+    """The crew has repaired the faulted cable: the fault indication resets."""
+    device = device_registry.get(slave_id)
+    if not device or device['type'] != 'feeder':
+        return False, "not a feeder"
+    store = device_contexts[slave_id]
+    if not store.getValues(3, REG_FAULT_SECTION, count=1)[0]:
+        return False, "no fault on this feeder"
+    store.setValues(3, REG_FAULT_SECTION, [0])
+    print(f"\n[TEST-SET] Slave {slave_id} ({device['name']}) → fault repaired\n")
+    return True, "fault repaired"
 
 
 def test_set_server():
@@ -426,10 +536,12 @@ def test_set_server():
             try:
                 conn.settimeout(5)
                 req = json.loads(conn.makefile().readline())
-                if req.get("cmd") != "trip":
-                    ok, msg = False, "unsupported command"
-                else:
+                if req.get("cmd") == "trip":
                     ok, msg = trip_feeder(int(req["slave_id"]), req.get("section"))
+                elif req.get("cmd") == "repair":
+                    ok, msg = repair_feeder(int(req["slave_id"]))
+                else:
+                    ok, msg = False, "unsupported command"
             except (OSError, ValueError, KeyError, TypeError) as e:
                 ok, msg = False, f"bad request: {e}"
             try:
@@ -465,6 +577,20 @@ def simulate_device(slave_id, device):
             vals = generate_transformer_values(device)
         else:
             vals = generate_feeder_values(device, bus_voltage[device['substation']])
+            t = topo_of_feeder.get(slave_id)
+            if t:
+                # Natural demand of this feeder's own nodes; what the breaker
+                # measures is the demand of the nodes it actually supplies
+                natural = vals['power_mw']
+                feeder_demand[slave_id] = natural
+                protection(t)
+                supplied = supplied_mw(t, slave_id)
+                if supplied > 0:
+                    # Meter noise is on what the breaker measures, not scaled
+                    # down with a part load (else a part-fed feeder looks frozen)
+                    supplied = max(0.0, supplied + random.uniform(-0.03, 0.03))
+                vals['current']  = vals['current'] * supplied / natural if natural > 0 else 0.0
+                vals['power_mw'] = supplied
 
         # Values follow breaker state. An open feeder breaker carries no
         # current or power; an open transformer breaker kills the whole bus.
@@ -642,10 +768,12 @@ async def main():
     threading.Thread(target=test_set_server, daemon=True).start()
 
     # DNP3 outstation: the control path for breaker OPEN / CLOSE
-    sys.path.insert(0, os.path.join(BASE_DIR, 'lib'))
     import dnp3lite
     _, by_point = dnp3lite.point_maps(CONFIG)
-    dnp3lite.Outstation(by_point, apply_breaker_command).start()
+    for t in TOPOLOGIES.values():
+        for sw in t.switches:
+            by_point[t.dnp3_point(sw['id'])] = sw['id']
+    dnp3lite.Outstation(by_point, apply_control).start()
 
     print("\n" + "="*60)
     print(" Mini SCADA RTU Simulator")
@@ -670,6 +798,9 @@ async def main():
     print("   40007 (addr 6)  → Fault section (0 = none)")
     print("   40100 (addr 99) → Breaker State (0=OPEN 1=CLOSED 2=TRIPPED)")
     print()
+    for t in TOPOLOGIES.values():
+        print(f" {t.ss_id} DA RTU: slave {t.da_slave}, {len(t.switches)} switches "
+              f"(DNP3 {t.dnp3_addr} points {topology.SWITCH_DNP3_BASE}+)")
     print(" Failure injection: ENABLED (first failure in ~45s)")
     print("="*60 + "\n")
 

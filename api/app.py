@@ -22,8 +22,14 @@ Endpoints
     POST /api/control/breaker           queue a breaker OPEN/CLOSE command
     GET  /api/control/commands          recent control commands
     GET  /api/control/commands/<id>     status of one command
+    POST /api/control/switch            queue an RMU / tie switch OPEN/CLOSE (DMS interlocked)
+    GET  /api/flisr/<ss_id>             live FLISR / restore-normal proposals + recent plans
+    POST /api/flisr/<ss_id>/execute     operator approves {"feeder_slave_id", "kind"}
+    POST /api/flisr/<ss_id>/cancel      stop an executing plan {"plan_id"}
+    POST /api/flisr/settings            {"auto": true|false}
     POST /api/sim/fault                 TEST SET: inject a feeder fault in the simulator
                                         {"slave_id": 3, "section": 2 (optional)}
+    POST /api/sim/repair                TEST SET: crew repaired the fault {"slave_id": 3}
 
 Alarm rules (ISA-18.2 style)
     CRITICAL / HIGH  must be ACKNOWLEDGED, then CLEARED by the operator.
@@ -33,6 +39,7 @@ Alarm rules (ISA-18.2 style)
 """
 
 import os
+import sys
 import json
 import socket
 import sqlite3
@@ -55,6 +62,12 @@ app = Flask(
 
 with open(CONFIG_PATH) as f:
     CONFIG = json.load(f)
+
+sys.path.insert(0, os.path.join(BASE_DIR, 'lib'))
+import topology  # noqa: E402
+import flisr     # noqa: E402
+
+TOPOLOGIES = topology.build(CONFIG)      # feeder-map stations
 
 PRIORITY_RANK     = {'CRITICAL': 1, 'HIGH': 2, 'MEDIUM': 3, 'LOW': 4}
 QUALITY_BY_STATUS = {'online': 'GOOD', 'frozen': 'SUSPECT', 'offline': 'BAD'}
@@ -139,6 +152,43 @@ def log_soe(substation_id, device_id, device_name, event_type,
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (now_ms(), substation_id, device_id, device_name, event_type,
           parameter, str(old), str(new), message, operator))
+
+
+def network(t, state, breakers=None, switches=None):
+    """Energisation of a feeder-map station, optionally for a proposed state."""
+    br = breakers or {f: st == 'CLOSED' for f, st in state['breakers'].items()}
+    return t.energise(state['transformer_live'], br, switches or state['switches'], state['faults'])
+
+
+def interlock(t, breaker=None, switch=None, command='CLOSE'):
+    """
+    DMS safety check before a CLOSE on a feeder-map station. Returns an error
+    message, or None if the operation is safe: it must not energise a faulted
+    section, nor parallel two feeders through a tie.
+    """
+    conn = get_db()
+    try:
+        state = flisr.load_state(conn, t, CONFIG)
+    finally:
+        conn.close()
+    br = {f: st == 'CLOSED' for f, st in state['breakers'].items()}
+    sw = dict(state['switches'])
+    if breaker is not None:
+        br[breaker] = command == 'CLOSE'
+    if switch is not None:
+        sw[switch] = topology.CLOSED if command == 'CLOSE' else topology.OPEN
+    before = network(t, state)
+    after  = network(t, state, br, sw)
+    if after['faulted']:
+        src, (f, k) = after['faulted'][0]
+        return (f"DMS interlock: this would energise the faulted section {k} of "
+                f"F{t.feeders[f]['number']}. Isolate it or repair the fault first.")
+    new_par = [p for p in after['parallel'] if p not in before['parallel']]
+    if new_par:
+        a, b = new_par[0]
+        return (f"DMS interlock: this would parallel F{t.feeders[a]['number']} and "
+                f"F{t.feeders[b]['number']} through a tie. Open the other side first.")
+    return None
 
 
 def get_operator():
@@ -380,35 +430,37 @@ def api_substation_detail(ss_id):
 @app.route('/api/feedermap/<ss_id>')
 def api_feedermap(ss_id):
     ss = SUBSTATIONS.get(ss_id)
-    if not ss:
-        return jsonify({'error': f'unknown substation {ss_id}'}), 404
-    if not any(f.get('load_nodes') for f in ss['feeders']):
+    t  = TOPOLOGIES.get(ss_id)
+    if not ss or not t:
         return jsonify({'error': f'{ss_id} has no feeder map'}), 404
 
-    states = device_states()
-    xfmr_ok = (states.get(ss['transformer']['slave_id'], {})
-               .get('breaker_state') or 'CLOSED') == 'CLOSED'
-    faults = {r['slave_id']: int(r['value']) for r in query(
-        "SELECT slave_id, value FROM current_values WHERE parameter='fault_section'")}
+    conn = get_db()
+    try:
+        state = flisr.load_state(conn, t, CONFIG)
+        comms = {r['slave_id']: r['status'] for r in conn.execute(
+            "SELECT slave_id, status FROM device_status")}
+    finally:
+        conn.close()
+    net = network(t, state)
 
-    feeders, nodes = [], []
-    total_consumers = affected_consumers = 0
-    total_kw = affected_kw = 0
-
+    feeders, nodes, sections = [], [], []
+    total_consumers = affected_consumers = total_kw = affected_kw = 0
     for f in ss['feeders']:
-        breaker  = states.get(f['slave_id'], {}).get('breaker_state') or 'CLOSED'
-        energised = xfmr_ok and breaker == 'CLOSED'
-        section   = faults.get(f['slave_id'], 0)
-        f_nodes   = f.get('load_nodes', [])
+        sid, f_nodes = f['slave_id'], f.get('load_nodes', [])
+        section = state['faults'].get(sid, 0)
+        live_nodes = sum(1 for i in range(1, len(f_nodes) + 1) if (sid, i) in net['nodes'])
         feeders.append({
-            'slave_id':      f['slave_id'],
+            'slave_id':      sid,
             'id':            f['id'],
             'name':          f['name'],
             'feeder_number': f['feeder_number'],
             'load_type':     f['load_type'],
-            'breaker_state': breaker,
-            'energised':     energised,
-            'comms_status':  states.get(f['slave_id'], {}).get('comms_status') or 'online',
+            'breaker_state': state['breakers'][sid],
+            'energised':     state['transformer_live'] and state['breakers'][sid] == 'CLOSED',
+            'comms_status':  comms.get(sid, 'online'),
+            'load_mw':       round(state['load_mw'].get(sid, 0), 2),
+            'nodes_live':    live_nodes,
+            'abnormal':      flisr.abnormal(t, state, sid),
             # Cable section the relay located the fault in (section N feeds
             # load node N); 0 = no fault
             'fault_section': section,
@@ -417,29 +469,45 @@ def api_feedermap(ss_id):
                               if 0 < section <= len(f_nodes) else None),
         })
         for seq, n in enumerate(f_nodes, start=1):
+            src = net['nodes'].get((sid, seq))
             nodes.append({
-                'id':        n['id'],
-                'name':      n['name'],
-                'type':      n['type'],
-                'consumers': n['consumers'],
-                'load_kw':   n['load_kw'],
-                'x':         n['x'],
-                'y':         n['y'],
-                'feeder_slave_id': f['slave_id'],
-                'seq':       seq,
-                'energised': energised,
+                'id': n['id'], 'name': n['name'], 'type': n['type'],
+                'consumers': n['consumers'], 'load_kw': n['load_kw'],
+                'x': n['x'], 'y': n['y'], 'feeder_slave_id': sid, 'seq': seq,
+                'energised': src is not None, 'source': src,
             })
             total_consumers += n['consumers']
             total_kw        += n['load_kw']
-            if not energised:
+            if src is None:
                 affected_consumers += n['consumers']
                 affected_kw        += n['load_kw']
+            sec = net['sections'].get((sid, seq))
+            sections.append({'feeder_slave_id': sid, 'section': seq,
+                             'energised': sec is not None,
+                             'source': sec[0] if sec else None,
+                             'direction': sec[1] if sec else 0,
+                             'faulted': section == seq})
+
+    switches = []
+    for sw in t.switches:
+        d = {'id': sw['id'], 'name': sw['name'], 'kind': sw['kind'],
+             'state': 'CLOSED' if state['switches'][sw['id']] else 'OPEN',
+             'normal': 'CLOSED' if sw['normal'] else 'OPEN',
+             'feeder_slave_id': sw['feeder'], 'node': sw['node']}
+        if sw['kind'] == 'TIE':
+            d.update(a={'feeder_slave_id': sw['a'][0], 'node': sw['a'][1]},
+                     b={'feeder_slave_id': sw['b'][0], 'node': sw['b'][1]}, via=sw['via'],
+                     energised=sw['a'] in net['nodes'] and bool(state['switches'][sw['id']]))
+        switches.append(d)
 
     return jsonify({
         'substation':   {'id': ss['id'], 'name': ss['name'],
-                         'transformer_energised': xfmr_ok},
+                         'transformer_energised': state['transformer_live'],
+                         'da_rtu': t.da_name},
         'feeders':      feeders,
         'load_nodes':   nodes,
+        'sections':     sections,
+        'switches':     switches,
         'impact': {
             'total_consumers':    total_consumers,
             'affected_consumers': affected_consumers,
@@ -684,6 +752,12 @@ def api_control_breaker():
     if command == 'CLOSE' and current == 'CLOSED':
         return jsonify({'error': 'breaker is already CLOSED'}), 409
 
+    t = TOPOLOGIES.get(dev['substation_id'])
+    if t and command == 'CLOSE' and slave_id in t.feeders:
+        why = interlock(t, breaker=slave_id)
+        if why:
+            return jsonify({'error': why}), 409
+
     _, cmd_id = execute("""
         INSERT INTO control_commands
         (timestamp, slave_id, device_id, device_name, substation_id,
@@ -733,6 +807,155 @@ def api_sim_fault():
     log_soe(dev['substation_id'], dev['id'], dev['name'], 'TEST_FAULT_INJECTED',
             'fault_section', '', section or 'random',
             f"Test set: fault injected on {dev['name']} ({reply['message']})", operator)
+    return jsonify({'status': 'ok', 'message': reply['message']})
+
+
+@app.route('/api/control/switch', methods=['POST'])
+def api_control_switch():
+    """Queue an RMU or tie switch OPEN/CLOSE (DNP3 point on the station outstation)."""
+    data      = request.get_json(silent=True) or {}
+    operator  = get_operator()
+    switch_id = str(data.get('switch_id', ''))
+    command   = str(data.get('command', '')).upper()
+    t = next((t for t in TOPOLOGIES.values() if switch_id in t.by_id), None)
+    if not t:
+        return jsonify({'error': 'unknown switch'}), 404
+    if command not in ('OPEN', 'CLOSE'):
+        return jsonify({'error': "command must be OPEN or CLOSE"}), 400
+    sw = t.by_id[switch_id]
+
+    conn = get_db()
+    try:
+        state = flisr.load_state(conn, t, CONFIG)
+    finally:
+        conn.close()
+    current = 'CLOSED' if state['switches'][switch_id] else 'OPEN'
+    if command == ('OPEN' if current == 'OPEN' else 'CLOSE'):
+        return jsonify({'error': f'switch is already {current}'}), 409
+    if command == 'CLOSE':
+        why = interlock(t, switch=switch_id)
+        if why:
+            return jsonify({'error': why}), 409
+
+    _, cmd_id = execute("""
+        INSERT INTO control_commands
+        (timestamp, slave_id, device_id, device_name, substation_id, command, operator, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING')
+    """, (now_ts(), t.da_slave, switch_id, sw['name'], t.ss_id, command, operator))
+    log_soe(t.ss_id, switch_id, sw['name'], 'CONTROL_ISSUED', 'switch_state', current, command,
+            f"{operator} issued {command} on {sw['name']}", operator)
+    return jsonify({'status': 'queued', 'command_id': cmd_id, 'switch_id': switch_id,
+                    'command': command}), 202
+
+
+# ─────────────────────────────────────────────
+# FLISR
+# ─────────────────────────────────────────────
+def plan_rows(ss_id, limit=6):
+    rows = query("SELECT * FROM switching_plans WHERE substation_id=? ORDER BY id DESC LIMIT ?",
+                 (ss_id, limit))
+    for r in rows:
+        r['steps'] = json.loads(r['steps'] or '[]')
+        r['summary'] = json.loads(r['summary'] or '{}')
+    return rows
+
+
+@app.route('/api/flisr/<ss_id>')
+def api_flisr(ss_id):
+    """Live FLISR proposals (computed now) and recent plans."""
+    t = TOPOLOGIES.get(ss_id)
+    if not t:
+        return jsonify({'error': f'{ss_id} has no FLISR network'}), 404
+    conn = get_db()
+    try:
+        state = flisr.load_state(conn, t, CONFIG)
+        auto = conn.execute("SELECT value FROM settings WHERE key='flisr_auto'").fetchone()
+    finally:
+        conn.close()
+
+    proposals = []
+    for fsid in t.feeders:
+        if state['faults'][fsid] and state['breakers'][fsid] != 'CLOSED':
+            proposals.append(flisr.plan_flisr(t, state, fsid))
+        elif not state['faults'][fsid] and (flisr.abnormal(t, state, fsid, ties=False)
+                                            or state['breakers'][fsid] == 'TRIPPED'):
+            proposals.append(flisr.plan_restore(t, state, fsid))
+    return jsonify({'auto': bool(auto and auto['value'] == '1'),
+                    'proposals': proposals, 'plans': plan_rows(ss_id)})
+
+
+@app.route('/api/flisr/<ss_id>/execute', methods=['POST'])
+def api_flisr_execute(ss_id):
+    """Operator approves a plan. It is recomputed here from the live state."""
+    t = TOPOLOGIES.get(ss_id)
+    if not t:
+        return jsonify({'error': f'{ss_id} has no FLISR network'}), 404
+    data = request.get_json(silent=True) or {}
+    operator = get_operator()
+    fsid, kind = data.get('feeder_slave_id'), data.get('kind', 'FLISR')
+    if fsid not in t.feeders or kind not in ('FLISR', 'RESTORE'):
+        return jsonify({'error': 'feeder_slave_id and kind FLISR|RESTORE required'}), 400
+
+    conn = get_db()
+    try:
+        if conn.execute("SELECT 1 FROM switching_plans WHERE status='EXECUTING' AND "
+                        "substation_id=?", (ss_id,)).fetchone():
+            return jsonify({'error': 'another switching plan is executing'}), 409
+        state = flisr.load_state(conn, t, CONFIG)
+        plan = (flisr.plan_flisr if kind == 'FLISR' else flisr.plan_restore)(t, state, fsid)
+        if not plan['feasible']:
+            return jsonify({'error': ' '.join(plan['notes']) or 'nothing to do'}), 409
+        pid = flisr.create_plan(conn, t, plan, 'MANUAL', operator)
+    finally:
+        conn.close()
+    return jsonify({'status': 'executing', 'plan_id': pid, 'steps': len(plan['steps'])}), 202
+
+
+@app.route('/api/flisr/<ss_id>/cancel', methods=['POST'])
+def api_flisr_cancel(ss_id):
+    data = request.get_json(silent=True) or {}
+    operator = get_operator()
+    n, _ = execute("UPDATE switching_plans SET status='CANCELLED', finished=?, result=? "
+                   "WHERE id=? AND substation_id=? AND status='EXECUTING'",
+                   (now_ts(), f'cancelled by {operator} (switches stay where they are)',
+                    data.get('plan_id'), ss_id))
+    if not n:
+        return jsonify({'error': 'no executing plan with that id'}), 409
+    return jsonify({'status': 'cancelled'})
+
+
+@app.route('/api/flisr/settings', methods=['POST'])
+def api_flisr_settings():
+    data = request.get_json(silent=True) or {}
+    operator = get_operator()
+    auto = bool(data.get('auto'))
+    execute("INSERT INTO settings (key, value) VALUES ('flisr_auto', ?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value", ('1' if auto else '0',))
+    for t in TOPOLOGIES.values():
+        log_soe(t.ss_id, 'FLISR', 'FLISR', 'FLISR_MODE', 'flisr_auto', '', 'AUTO' if auto else 'MANUAL',
+                f"FLISR set to {'automatic' if auto else 'manual (operator approval)'} by {operator}",
+                operator)
+    return jsonify({'status': 'ok', 'auto': auto})
+
+
+@app.route('/api/sim/repair', methods=['POST'])
+def api_sim_repair():
+    """TEST SET: the crew has repaired the faulted cable (fault indication resets)."""
+    data     = request.get_json(silent=True) or {}
+    operator = get_operator()
+    dev = DEVICES.get(data.get('slave_id'))
+    if not dev or dev['type'] != 'feeder':
+        return jsonify({'error': 'slave_id must be a feeder'}), 404
+    try:
+        with socket.create_connection(TEST_SET_ADDR, timeout=5) as sock:
+            sock.sendall((json.dumps({'cmd': 'repair', 'slave_id': dev['slave_id']}) + '\n').encode())
+            reply = json.loads(sock.makefile().readline())
+    except (OSError, ValueError) as e:
+        return jsonify({'error': f'simulator test set not reachable: {e}'}), 503
+    if not reply.get('ok'):
+        return jsonify({'error': reply.get('message', 'refused')}), 409
+    log_soe(dev['substation_id'], dev['id'], dev['name'], 'TEST_FAULT_REPAIRED', 'fault_section',
+            '', 0, f"Test set: crew repaired the fault on {dev['name']}", operator)
     return jsonify({'status': 'ok', 'message': reply['message']})
 
 

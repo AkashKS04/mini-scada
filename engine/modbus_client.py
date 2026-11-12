@@ -16,6 +16,7 @@ Features:
 """
 
 import os
+import sys
 import json
 import time
 import sqlite3
@@ -134,6 +135,11 @@ print(f"[CONFIG] Loaded {len(device_registry)} devices")
 # {substation_id: transformer slave id}, used to tell if a device has supply
 TRANSFORMER_OF = {ss['id']: ss['transformer']['slave_id'] for ss in CONFIG['substations']}
 
+# Feeder-map stations: DA RTU with one status register per RMU / tie switch
+sys.path.insert(0, os.path.join(BASE_DIR, 'lib'))
+import topology  # noqa: E402
+TOPOLOGIES = topology.build(CONFIG)
+
 # ─────────────────────────────────────────────
 # In-memory state tracking
 # ─────────────────────────────────────────────
@@ -163,6 +169,10 @@ breaker_open_alarms = {}
 
 # Last fault section seen per feeder: {slave_id: int}
 fault_sections = {}
+
+# Last switch states per DA RTU: {da_slave: {switch_id: 0/1}}
+switch_states = {}
+da_failed = {}
 
 # Device comms status: {slave_id: 'online'|'offline'|'frozen'}
 device_comms_status = {sid: 'online' for sid in device_registry}
@@ -322,6 +332,36 @@ def init_db():
         )
     """)
 
+    # Switching plans (FLISR / restore normal), executed step by step by the
+    # control layer, each step confirmed by telemetry before the next
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS switching_plans (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            created           TEXT,
+            substation_id     TEXT,
+            feeder_slave_id   INTEGER,
+            kind              TEXT,
+            mode              TEXT,
+            operator          TEXT,
+            steps             TEXT,
+            summary           TEXT,
+            status            TEXT DEFAULT 'EXECUTING',
+            current_step      INTEGER DEFAULT 0,
+            step_cmd_id       INTEGER,
+            step_started      TEXT,
+            result            TEXT,
+            finished          TEXT
+        )
+    """)
+
+    # Key/value settings shared by the API and the control layer (e.g. FLISR auto)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key   TEXT PRIMARY KEY,
+            value TEXT
+        )
+    """)
+
     # Indexes so trend and latest-value queries stay fast as readings grow
     c.execute("CREATE INDEX IF NOT EXISTS idx_readings_dev_ts ON readings(slave_id, timestamp)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_alarms_status ON alarms(status, id)")
@@ -409,6 +449,37 @@ def save_readings(rows, status_rows=()):
             SET value=excluded.value, timestamp=excluded.timestamp
         """, list(rows) + list(status_rows))
     conn.close()
+
+
+def poll_da_rtu(client, t, ts, status):
+    """Read every switch status of a DA RTU; SOE entry for each change."""
+    result = client.read_holding_registers(0, count=len(t.switches), slave=t.da_slave)
+    if result.isError():
+        da_failed[t.da_slave] = da_failed.get(t.da_slave, 0) + 1
+        if da_failed[t.da_slave] == OFFLINE_THRESHOLD:
+            print(f"  [TIMEOUT] {t.da_name} not responding")
+        return
+    da_failed[t.da_slave] = 0
+    prev = switch_states.get(t.da_slave)
+    now  = {}
+    for sw in t.switches:
+        v = result.registers[sw['index']]
+        now[sw['id']] = v
+        status.append((ts, t.da_slave, sw['id'], v))
+        if prev is not None and prev.get(sw['id']) != v:
+            word = 'CLOSED' if v else 'OPEN'
+            conn = sqlite3.connect(DB_PATH)
+            conn.execute("""
+                INSERT INTO soe_log (timestamp_ms, substation_id, device_id, device_name,
+                                     event_type, parameter, old_value, new_value, message)
+                VALUES (?, ?, ?, ?, ?, 'switch_state', ?, ?, ?)
+            """, (now_ms(), t.ss_id, sw['id'], sw['name'], f'SWITCH_{word}',
+                  'CLOSED' if prev.get(sw['id']) else 'OPEN', word,
+                  f"{sw['name']} ({sw['id']}) {word}"))
+            conn.commit()
+            conn.close()
+            print(f"  [SWITCH][{sw['id']}] → {word}")
+    switch_states[t.da_slave] = now
 
 
 def check_fault_section(dev, section):
@@ -916,6 +987,9 @@ def main():
                     handle_poll_failure(dev)
 
             # Historian + real-time table, one transaction per cycle
+            for t in TOPOLOGIES.values():
+                poll_da_rtu(client, t, ts, status)
+
             save_readings(batch, status)
 
             if time.time() - last_purge > RETENTION_EVERY_SECONDS:

@@ -8,8 +8,9 @@ conversation, so verify anything important against the code before relying on it
 A Linux SCADA simulation on RHEL 10, built by Akash (ACSIS, SCADA/DMS/OMS domain)
 to show real utility concepts: Modbus TCP monitoring, DNP3 control, a four-level
 alarm engine, historian, failure detection, SOE log and a station HMI with a
-single-line diagram. Five 33/11kV Bengaluru substations, 41 simulated devices
-(5 transformers, 36 feeders: 5/6/7/8/10 per station).
+single-line diagram, and FLISR on a feeder network map. Five 33/11kV Bengaluru
+substations, 41 simulated devices (5 transformers, 36 feeders: 5/6/7/8/10 per station),
+plus a distribution-automation RTU for SS-01's 33 RMU/tie switches.
 GitHub: github.com/AkashKS04/mini-scada. It is a learning/portfolio project that
 uses no real utility data. Keep it that way.
 
@@ -22,6 +23,8 @@ engine/modbus_client.py      polls all slaves (one block read of 40001-40006 + o
 engine/dnp3_controller.py    DNP3 master: executes queued breaker commands (SELECT then OPERATE)
 api/app.py                   Flask REST API on 127.0.0.1:8080, serves templates/hmi.html
 lib/dnp3lite.py              pure-Python DNP3 subset (master + outstation), shared
+lib/topology.py              SS-01 network model (RMU switches, ties, energisation), shared by all
+lib/flisr.py                 FLISR / restore-normal planner + state loader + create_plan
 config/substations.json      SINGLE SOURCE OF TRUTH: devices, limits, priorities, load nodes
 templates/hmi.html           station HMI (tiles, SVG single-line diagram, feeder network map for
                              is_feeder_map stations (SS-01), equipment table, alarms).
@@ -30,6 +33,9 @@ templates/index.html         OLD Phase 3 dashboard, unused
 systemd/                     copies of the service unit files
 
 Data flow: monitoring = simulator -(Modbus)-> client -> scada.db -> API -> HMI.
+FLISR = fault -> client logs FAULT_LOCATED -> plan (API on operator approval, or controller in
+auto mode) -> switching_plans row -> controller queues one control_commands row per step,
+waits for Modbus telemetry to confirm it, then the next step.
 Control = HMI -> API (queues a row in control_commands) -> dnp3_controller
 -(DNP3)-> outstation -> apply_breaker_command() -> breaker register -> next Modbus poll.
 
@@ -56,13 +62,20 @@ historian; changes are logged in the SOE as FAULT_LOCATED / FAULT_CLEARED.
 DNP3: master address 1, outstation address 100 + substation number (SS-01 = 101 ... SS-05 = 105).
 Point index 0 = transformer breaker, N = feeder N breaker. CROB code 0x81 = trip/OPEN,
 0x41 = close. Select-before-operate, select timeout 10 s.
+SS-01 RMU/tie switches: DNP3 outstation 101 points 10-42 (10 + switch index); status on Modbus
+slave 42 (DA RTU), register address = switch index, 1 = CLOSED. Switch ids F{n}-N{i}-IN/OUT and
+NOP-1..4 (ties from config "ties"). Section k of a feeder = OUT of node k-1 (breaker for k=1) to
+IN of node k. Normal: IN/OUT closed, ties open.
 It is a SUBSET: no class polls, events, unsolicited responses, time sync, file transfer,
 confirmed link frames or Secure Authentication. The outstation also accepts DIRECT OPERATE (0x05);
 the controller always uses SELECT then OPERATE.
 Never describe it as a full DNP3 stack. It was checked against Wireshark's DNP3 decoder.
 
 ## Database (scada.db, created by modbus_client.init_db)
-substations, devices, readings, current_values, alarms, soe_log, device_status, control_commands.
+substations, devices, readings, current_values, alarms, soe_log, device_status, control_commands,
+switching_plans (FLISR/RESTORE plans, steps JSON, status EXECUTING/COMPLETED/FAILED/REJECTED/
+CANCELLED), settings (flisr_auto). New tables are created on the existing db; no delete needed.
+Switch states live in current_values under slave_id 42, parameter = switch id.
 CREATE TABLE IF NOT EXISTS does not migrate. After a schema change, delete scada.db.
 WAL journal mode (scada.db-wal / -shm files sit next to it and need the same ownership).
 The client holds one idle "wal_keeper" connection so those files always exist while it runs.
@@ -94,6 +107,22 @@ The client purges rows older than RETENTION_HOURS = 30 every 10 min (~600 MB ste
 - Analog alarms still fire on de-energised equipment (only FREEZE is suppressed).
 - FREEZE is checked only on voltage, current and power_mw (FREEZE_PARAMETERS). PF and
   frequency at 0.01 resolution and transformer oil temperature can legitimately hold steady.
+
+## FLISR (lib/flisr.py, executed by dnp3_controller.py)
+- Plan for a tripped feeder with fault section k: open both ends of section k, reclose the
+  breaker (not for k = 1), close a tie for nodes k..n if the supporting feeder can carry it:
+  now MW + transfer <= 0.9 x its power HIGH_HIGH (emergency rating). Transfer = pre-fault MW
+  (historian, minute before FAULT_LOCATED) x connected-kW share. If not, partial: open IN of
+  node j and backfeed only j..n. The final state is simulated; any energised fault or parallel
+  feeders rejects the plan. Backfeeding can push the supporting feeder above HIGH (alarm): real.
+- Restore normal (only after Repair): open ties touching the feeder (break before make), close
+  its switches from the substation outwards, then the breaker. Restore proposals use
+  abnormal(ties=False): a feeder that only backfeeds through a tie must not get one.
+- Manual mode: operator approves in the HMI (plan recomputed on the server). Auto mode
+  (settings flisr_auto=1): controller makes one plan per FAULT_LOCATED event. One executing
+  plan per station. Step confirm timeout 20 s; controller restart fails executing plans.
+- DMS interlocks in the API: refuse a CLOSE (breaker or switch) that would energise a faulted
+  section or parallel two feeders. The simulator still trips a breaker that closes onto a fault.
 
 ## Control safety (dnp3_controller.py)
 Commands expire after COMMAND_TTL = 30 s. Status: PENDING -> EXECUTING -> EXECUTED | FAILED | EXPIRED.
@@ -131,10 +160,13 @@ LOAD_CEILING 0.88 keeps normal peak load below the HIGH limits. FAILURE_GAP (300
 how often offline / freeze / trip failures are injected. Injected trips auto-reclose after 25-50 s;
 freeze injection only hits voltage, current and MW. Values follow breaker state: open
 feeder = 0 A and 0 MW; open transformer = whole bus dead. Spike probability is 0.001.
-Faults: trip_feeder() sets 40007 and trips the breaker. Random injector trips auto-reclose after
-25-50 s (unless an operator operated it meanwhile); test-set faults stay tripped until an operator
-CLOSEs over DNP3, which clears 40007. POST /api/sim/fault forwards to the test set and logs
-TEST_FAULT_INJECTED in the SOE with the operator name: it is a simulation tool, not a control.
+Faults: trip_feeder() sets 40007 and trips the breaker. A fault stays until repaired (test set
+"repair", POST /api/sim/repair, SOE TEST_FAULT_REPAIRED); a breaker CLOSE no longer clears it,
+and protection() trips any breaker that feeds a faulted section. Random injector trips are
+transient: they clear 40007 and auto-reclose after 25-50 s unless the breaker was operated.
+POST /api/sim/fault forwards to the test set and logs TEST_FAULT_INJECTED with the operator.
+SS-01 feeder MW = demand of the nodes its breaker supplies now (incl. nodes backfed through a
+tie) + meter noise added AFTER the split (else a part-fed feeder reads constant and FREEZEs).
 OFFLINE sets RtuContext.offline, so validate() refuses requests; never remove a slave from the
 server context (pymodbus drops unknown unit ids silently -> 3 s client timeouts, 9 s cycles).
 
@@ -152,6 +184,8 @@ server context (pymodbus drops unknown unit ids silently -> 3 s client timeouts,
   simulator's own context too and crashed every thread. Caught in a scratchpad test.
 - 2026-11-11: Claude opened scada.db read-only as akash to check it, recreated the WAL side
   files as akash, and crash-looped scada-client for ~40 s. Fixed with wal_keeper + the rule above.
+- 2026-11-12: FLISR first offered "restore normal" for the feeder supplying a backfeed, which
+  would have opened the tie and dropped the backfed customers. Fixed (abnormal(ties=False)).
 - 2026-11-12: a screenshot looked unchanged after a CSS edit because Flask had cached the
   template. Restart the API process before judging an HMI change.
 - The old live-value query (MAX(id) GROUP BY over readings) took 2 s at 322k rows. Never read live
@@ -163,11 +197,14 @@ station HMI with SLD, DNP3 control with confirm step, unauthorised-control detec
 bulk "clear returned-to-normal" button, firewalld + restricted service user,
 5 substations / 41 devices, real-time table, historian retention, 0-based Modbus addressing,
 electrically consistent simulator (transformer = sum of feeders), real OFFLINE failures,
-SS-01 feeder network map (fault location, outage/restore wave, supply impact, test-set faults).
-Next ideas: FLISR (open sectionalisers around the faulted section and restore healthy sections), state-based alarm suppression for out-of-service
-equipment, SOE tab in the HMI, README refresh, login for the HMI, DNP3 event polling
-(outstation-timestamped SOE; today SOE times are poll times, ~3 s resolution).
-Known gaps: operator name is free text (no real authentication), DNP3 is a subset.
+SS-01 feeder network map (fault location, outage/restore wave, supply impact, test-set faults),
+FLISR with RMU/tie switches, partial restoration, manual + automatic modes, restore normal.
+Next ideas: SOE tab in the HMI, README refresh, load-flow based capacity check (today: MW
+sums vs limits), state-based alarm suppression for out-of-service equipment, login for the HMI,
+DNP3 event polling (outstation-timestamped SOE; today SOE times are poll times, ~3 s resolution).
+Known gaps: operator name is free text (no real authentication), DNP3 is a subset, FLISR
+capacity is a MW-sum check (no voltage-drop/load-flow), unauthorised-control detection covers
+breakers only (not RMU switches).
 
 ## Testing the HMI without a person
 Run a copy of the stack in the scratchpad on other ports (sed 5020/20000/20001/8080), add to the
