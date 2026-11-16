@@ -19,6 +19,7 @@ Endpoints
                                         ?substation=SS-01 limits it to one station
     GET  /api/soe                       Sequence of Events log
     GET  /api/trends                    historian data  ?slave_id=2&hours=1
+    GET  /api/live                      latest values   ?points=2:current,31:power_mw
     POST /api/control/breaker           queue a breaker OPEN/CLOSE command
     GET  /api/control/commands          recent control commands
     GET  /api/control/commands/<id>     status of one command
@@ -30,6 +31,9 @@ Endpoints
     POST /api/sim/fault                 TEST SET: inject a feeder fault in the simulator
                                         {"slave_id": 3, "section": 2 (optional)}
     POST /api/sim/repair                TEST SET: crew repaired the fault {"slave_id": 3}
+    POST /api/sim/storm                 WEATHER SIM: {"action": "start"|"stop", "intensity": "moderate"|"severe"}
+    GET  /api/storm/geo                 Storm Watch map: substations, feeder routes, bounds
+    GET  /api/storm                     lightning feed, proximity warnings, trip/strike correlation
 
 Alarm rules (ISA-18.2 style)
     CRITICAL / HIGH  must be ACKNOWLEDGED, then CLEARED by the operator.
@@ -66,8 +70,10 @@ with open(CONFIG_PATH) as f:
 sys.path.insert(0, os.path.join(BASE_DIR, 'lib'))
 import topology  # noqa: E402
 import flisr     # noqa: E402
+import geo       # noqa: E402
 
 TOPOLOGIES = topology.build(CONFIG)      # feeder-map stations
+GEO_NET    = geo.network(CONFIG)         # illustrative geographic routes of those stations
 
 PRIORITY_RANK     = {'CRITICAL': 1, 'HIGH': 2, 'MEDIUM': 3, 'LOW': 4}
 QUALITY_BY_STATUS = {'online': 'GOOD', 'frozen': 'SUSPECT', 'offline': 'BAD'}
@@ -329,10 +335,19 @@ a{color:#58a6ff}code{background:#161b22;padding:2px 6px;border-radius:4px}</styl
 """
 
 
+def static_version():
+    """Newest modification time of the HMI's CSS/JS, so browsers never run a stale copy."""
+    newest = 0
+    for root, _, files in os.walk(os.path.join(BASE_DIR, 'static')):
+        for name in files:
+            newest = max(newest, os.path.getmtime(os.path.join(root, name)))
+    return int(newest)
+
+
 @app.route('/')
 def index():
     if os.path.exists(os.path.join(BASE_DIR, 'templates', 'hmi.html')):
-        return render_template('hmi.html')
+        return render_template('hmi.html', v=static_version())
     return render_template_string(PLACEHOLDER)
 
 
@@ -726,6 +741,22 @@ def api_trends():
     })
 
 
+@app.route('/api/live')
+def api_live():
+    """Latest value of each requested point: ?points=2:current,31:power_mw (real-time table)."""
+    pts = []
+    for item in request.args.get('points', '').split(','):
+        sid, _, param = item.partition(':')
+        if sid.isdigit() and param:
+            pts.append((int(sid), param))
+    if not pts or len(pts) > 40:
+        return jsonify({'error': 'points: 1-40 entries of slave_id:parameter'}), 400
+    rows = query("SELECT slave_id, parameter, value, timestamp FROM current_values WHERE "
+                 + " OR ".join(["(slave_id=? AND parameter=?)"] * len(pts)),
+                 [v for p in pts for v in p])
+    return jsonify(rows)
+
+
 # ─────────────────────────────────────────────
 # Breaker control (queued)
 # ─────────────────────────────────────────────
@@ -956,6 +987,152 @@ def api_sim_repair():
         return jsonify({'error': reply.get('message', 'refused')}), 409
     log_soe(dev['substation_id'], dev['id'], dev['name'], 'TEST_FAULT_REPAIRED', 'fault_section',
             '', 0, f"Test set: crew repaired the fault on {dev['name']}", operator)
+    return jsonify({'status': 'ok', 'message': reply['message']})
+
+
+# ─────────────────────────────────────────────
+# Storm Watch
+# ─────────────────────────────────────────────
+CORR_BEFORE_S = 12      # a stroke may precede the trip we saw by up to this (poll delay)
+CORR_AFTER_S  = 1
+CORR_KM       = 3.0
+WARN_KM       = (3.0, 8.0)    # RED inside 3 km, AMBER inside 8 km
+WARN_SECONDS  = 300
+
+
+def test_set(req):
+    """One request to the simulator's test-set port. Raises OSError/ValueError if unreachable."""
+    with socket.create_connection(TEST_SET_ADDR, timeout=5) as sock:
+        sock.sendall((json.dumps(req) + '\n').encode())
+        return json.loads(sock.makefile().readline())
+
+
+def feeder_distance_km(dev, p):
+    """Distance from point p to a feeder: its cable route if known, else its substation."""
+    net = GEO_NET.get(dev['substation_id'])
+    if net and dev['slave_id'] in net['feeders']:
+        pts = net['feeders'][dev['slave_id']]
+        return min(geo.dist_to_segment_km(p, pts[k - 1], pts[k]) for k in range(1, len(pts)))
+    ss = SUBSTATIONS[dev['substation_id']]
+    return geo.dist_km(p, (ss['latitude'], ss['longitude']))
+
+
+def correlate_trips(strikes):
+    """
+    Match recent breaker trips with cloud-to-ground strokes, by time and
+    distance only (the simulator's own cause record is not used): a stroke
+    up to CORR_BEFORE_S before the trip was seen, within CORR_KM of the feeder.
+    """
+    since = (datetime.now() - timedelta(minutes=20)).strftime("%Y-%m-%d %H:%M:%S")
+    by_id = {d['id']: d for d in DEVICES.values()}
+    cg = [x for x in strikes if x['type'] == 'CG']
+    # What happened after each trip: when the breaker closed again, and whether
+    # a command closed it (operator / FLISR) or the auto-recloser did
+    closes = {}
+    for r in query("SELECT timestamp_ms, device_id FROM soe_log WHERE event_type='BREAKER_CLOSED' "
+                   "AND timestamp_ms >= ? ORDER BY id", (since,)):
+        closes.setdefault(r['device_id'], []).append(r['timestamp_ms'])
+    commands = {}
+    for r in query("SELECT executed_timestamp, device_id, operator FROM control_commands WHERE "
+                   "command='CLOSE' AND status='EXECUTED' AND executed_timestamp >= ?", (since,)):
+        commands.setdefault(r['device_id'], []).append((r['executed_timestamp'], r['operator']))
+    states = device_states()
+    out = []
+    for ev in query("SELECT timestamp_ms, device_id, device_name, substation_id FROM soe_log "
+                    "WHERE event_type='BREAKER_TRIPPED' AND timestamp_ms >= ? ORDER BY id DESC LIMIT 30",
+                    (since,)):
+        dev = by_id.get(ev['device_id'])
+        if not dev:
+            continue
+        t_trip = datetime.strptime(ev['timestamp_ms'], "%Y-%m-%d %H:%M:%S.%f").timestamp() * 1000
+        best = None
+        for x in cg:
+            dt = (t_trip - x['t']) / 1000
+            if -CORR_AFTER_S <= dt <= CORR_BEFORE_S:
+                d = feeder_distance_km(dev, (x['lat'], x['lon']))
+                if d <= CORR_KM and (best is None or d < best[0]):
+                    best = (d, dt, x)
+        row = {'time': ev['timestamp_ms'], 't': int(t_trip), 'device_name': ev['device_name'],
+               'slave_id': dev['slave_id'], 'substation_id': ev['substation_id'], 'strike': None}
+        closed_at = next((c for c in closes.get(ev['device_id'], []) if c > ev['timestamp_ms']), None)
+        if closed_at:
+            secs = (datetime.strptime(closed_at, "%Y-%m-%d %H:%M:%S.%f").timestamp() * 1000 - t_trip) / 1000
+            by = next((op for ts, op in commands.get(ev['device_id'], [])
+                       if ev['timestamp_ms'][:19] <= ts <= closed_at[:19]), None)
+            row['outcome'] = {'state': 'CLOSED_BY_COMMAND' if by else 'AUTO_RECLOSED',
+                              'after_s': round(secs, 1), 'by': by}
+        else:
+            row['outcome'] = {'state': 'STILL_' + (states.get(dev['slave_id'], {}).get('breaker_state') or 'UNKNOWN')}
+        if best:
+            row['strike'] = {'id': best[2]['id'], 'lat': best[2]['lat'], 'lon': best[2]['lon'],
+                             'ka': best[2]['ka'], 'distance_km': round(best[0], 2),
+                             'seconds_before': round(best[1], 1)}
+        out.append(row)
+    return out
+
+
+@app.route('/api/storm/geo')
+def api_storm_geo():
+    subs = [{'id': ss['id'], 'short_name': ss['short_name'], 'name': ss['name'],
+             'lat': ss['latitude'], 'lon': ss['longitude']} for ss in CONFIG['substations']]
+    feeders, ties = [], []
+    for ss_id, net in GEO_NET.items():
+        for sid, pts in net['feeders'].items():
+            feeders.append({'substation_id': ss_id, 'slave_id': sid,
+                            'feeder_number': DEVICES[sid]['feeder_number'], 'points': pts})
+        ties += [{'id': tid, 'a': a, 'b': b} for tid, a, b in net['ties']]
+    return jsonify({'substations': subs, 'feeders': feeders, 'ties': ties,
+                    'note': 'Substations are at their configured coordinates. Feeder routes are '
+                            'illustrative, laid out around the substation from the schematic.'})
+
+
+@app.route('/api/storm')
+def api_storm():
+    since = request.args.get('since', 0, type=int)
+    try:
+        reply = test_set({'cmd': 'storm_state', 'since': 0})
+    except (OSError, ValueError) as e:
+        return jsonify({'error': f'simulator not reachable: {e}'}), 503
+    st = reply['storm']
+    strikes, now = st['strikes'], st['now']
+
+    recent = [x for x in strikes if x['type'] == 'CG' and now - x['t'] <= WARN_SECONDS * 1000]
+    warnings = []
+    for ss in CONFIG['substations']:
+        pos = (ss['latitude'], ss['longitude'])
+        ds = sorted(geo.dist_km(pos, (x['lat'], x['lon'])) for x in recent)
+        level = 'CLEAR' if not ds or ds[0] > WARN_KM[1] else 'RED' if ds[0] <= WARN_KM[0] else 'AMBER'
+        warnings.append({'substation_id': ss['id'], 'short_name': ss['short_name'], 'level': level,
+                         'nearest_km': round(ds[0], 1) if ds else None,
+                         'within_8km': sum(1 for d in ds if d <= WARN_KM[1])})
+
+    minute = [x for x in strikes if now - x['t'] <= 60000]
+    st['last_id'] = max((x['id'] for x in strikes), default=0)
+    st['strikes'] = [x for x in strikes if x['id'] > since]
+    st.update(warnings=warnings, correlations=correlate_trips(strikes), stats={
+        'per_min': len(minute), 'cg_per_min': sum(1 for x in minute if x['type'] == 'CG'),
+        'max_ka': max((abs(x['ka']) for x in recent), default=0), 'total': len(strikes)})
+    return jsonify(st)
+
+
+@app.route('/api/sim/storm', methods=['POST'])
+def api_sim_storm():
+    """WEATHER SIM: start or stop the simulated thunderstorm."""
+    data     = request.get_json(silent=True) or {}
+    operator = get_operator()
+    action   = data.get('action')
+    if action not in ('start', 'stop'):
+        return jsonify({'error': 'action must be start or stop'}), 400
+    try:
+        reply = test_set({'cmd': 'storm', 'action': action, 'intensity': data.get('intensity', 'moderate')})
+    except (OSError, ValueError) as e:
+        return jsonify({'error': f'simulator not reachable: {e}'}), 503
+    if not reply.get('ok'):
+        return jsonify({'error': reply.get('message', 'refused')}), 409
+    ss = CONFIG['substations'][0]
+    log_soe(ss['id'], 'WEATHER', 'Weather simulation', f"SIM_STORM_{'STARTED' if action == 'start' else 'STOPPED'}",
+            'storm', '', data.get('intensity', '') if action == 'start' else '',
+            f"Weather simulation: {reply['message']}", operator)
     return jsonify({'status': 'ok', 'message': reply['message']})
 
 

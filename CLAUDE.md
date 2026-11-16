@@ -26,9 +26,18 @@ lib/dnp3lite.py              pure-Python DNP3 subset (master + outstation), shar
 lib/topology.py              SS-01 network model (RMU switches, ties, energisation), shared by all
 lib/flisr.py                 FLISR / restore-normal planner + state loader + create_plan
 config/substations.json      SINGLE SOURCE OF TRUTH: devices, limits, priorities, load nodes
-templates/hmi.html           station HMI (tiles, SVG single-line diagram, feeder network map for
-                             is_feeder_map stations (SS-01), equipment table, alarms).
-                             The SLD lays out any feeder count; >5 feeders widens it and it scrolls.
+lib/geo.py                   Storm Watch geography: substations at config lat/lon, SS-01 feeder
+                             routes placed around the substation from the schematic (illustrative)
+simulator/storm.py           thunderstorm + lightning model, run inside the simulator
+templates/hmi.html           page shell only: header, console nav, Displays/Panels menus, dialog
+static/css/hmi.css           all styles
+static/js/core.js            helpers, shared state (App), breaker/switch dialog, refresh loop
+static/js/views.js           SLD, station strip, Alarm / Event (SOE) / Equipment panels
+static/js/fmap.js            Feeder schematic panel: network map, supply impact, FLISR
+static/js/workspace.js       System Operator Console: zones, drag and drop, split/tabs, layout memory
+static/js/trend.js           Trending console (canvas, real-time pens)
+static/js/storm.js           Storm Watch console (canvas map, lightning animation)
+                             Script load order matters: core, views, fmap, trend, storm, workspace.
 templates/index.html         OLD Phase 3 dashboard, unused
 systemd/                     copies of the service unit files
 
@@ -38,6 +47,23 @@ auto mode) -> switching_plans row -> controller queues one control_commands row 
 waits for Modbus telemetry to confirm it, then the next step.
 Control = HMI -> API (queues a row in control_commands) -> dnp3_controller
 -(DNP3)-> outstation -> apply_breaker_command() -> breaker register -> next Modbus poll.
+
+## HMI consoles (one page, three consoles in the header nav)
+- System Operator Console: displays zone (substation SLDs) on top, panels zone below. Each zone
+  shows 1 item full width, 2 side by side, 3+ as Chrome-style tabs (zone classes m-one / m-split /
+  m-tabs). Items come from the Displays / Panels menus by drag and drop or click; tabs and pane
+  headers drag to reorder; x closes. Panels: alarms, events, feeder, equipment. Default layout:
+  SS-01 + alarms. Layout is kept in localStorage (mini-scada-soc-v1). Panes are kept alive while
+  open and only visible ones fetch data. Equipment follows WS.focus (display last clicked).
+- Trending: pens from /api/trends (history) + /api/live (every refresh), one strip per unit,
+  SOE markers for the trended devices, windows 5 min - 24 h, pens saved in localStorage.
+- Storm Watch: /api/storm/geo once, /api/storm every second (LLS-style stroke feed, proximity
+  warnings, trip/stroke correlation), SS-01 network coloured from /api/feedermap.
+- Canvas consoles draw on requestAnimationFrame AND on every data update (background tabs and
+  headless Firefox throttle animation frames).
+- CSS class names are global: `.fault` (map marker, hidden unless .on) once hid the SOE event
+  labels, and a zone class `tabs` once collided with the tab strip. Prefix new classes.
+- Static files are versioned by mtime (?v=) from the template, so no stale JS after a deploy.
 
 ## Stack and pins
 RHEL 10, Python 3.12, Flask, SQLite. **pymodbus must stay at 3.6.9.** Version 3.13 renamed
@@ -160,6 +186,15 @@ LOAD_CEILING 0.88 keeps normal peak load below the HIGH limits. FAILURE_GAP (300
 how often offline / freeze / trip failures are injected. Injected trips auto-reclose after 25-50 s;
 freeze injection only hits voltage, current and MW. Values follow breaker state: open
 feeder = 0 A and 0 MW; open transformer = whole bus dead. Spike probability is 0.001.
+Storm (simulator/storm.py, started/stopped through the test set, POST /api/sim/storm): cells
+spawn upwind of a target (the feeder-map station's network centre 60 % of the time), move at
+30 km/h x TIME_LAPSE 8, live 5-8 min, storm ends after 20 min. Strokes: ~40 % cloud-to-ground
+(88 % negative), rest in-cloud. A CG stroke within 0.4 km of an SS-01 section causes a fault
+there (60 % permanent, else transient_trip with 5-9 s auto-reclose); within 2.5 km of another
+substation a transient trip. Faults are rate-limited (fault_gap). The stroke's `effect` is
+ground truth for debugging; the API correlation (time <= 12 s before the trip was seen,
+distance <= 3 km) never uses it. Auto FLISR waits RECLOSE_WAIT = 12 s after FAULT_LOCATED so a
+transient fault can reclose first.
 Faults: trip_feeder() sets 40007 and trips the breaker. A fault stays until repaired (test set
 "repair", POST /api/sim/repair, SOE TEST_FAULT_REPAIRED); a breaker CLOSE no longer clears it,
 and protection() trips any breaker that feeds a faulted section. Random injector trips are
@@ -198,8 +233,10 @@ bulk "clear returned-to-normal" button, firewalld + restricted service user,
 5 substations / 41 devices, real-time table, historian retention, 0-based Modbus addressing,
 electrically consistent simulator (transformer = sum of feeders), real OFFLINE failures,
 SS-01 feeder network map (fault location, outage/restore wave, supply impact, test-set faults),
-FLISR with RMU/tie switches, partial restoration, manual + automatic modes, restore normal.
-Next ideas: SOE tab in the HMI, README refresh, load-flow based capacity check (today: MW
+FLISR with RMU/tie switches, partial restoration, manual + automatic modes, restore normal,
+operator console workspace (drag/drop, split, tabs), Event (SOE) panel, Trending console,
+Storm Watch (simulated lightning causing faults, proximity warnings, trip/stroke correlation).
+Next ideas: README refresh, load-flow based capacity check (today: MW
 sums vs limits), state-based alarm suppression for out-of-service equipment, login for the HMI,
 DNP3 event polling (outstation-timestamped SOE; today SOE times are poll times, ~3 s resolution).
 Known gaps: operator name is free text (no real authentication), DNP3 is a subset, FLISR
@@ -209,7 +246,8 @@ breakers only (not RMU switches).
 ## Testing the HMI without a person
 Run a copy of the stack in the scratchpad on other ports (sed 5020/20000/20001/8080), add to the
 COPY of hmi.html a window.onerror trap and <img src="/slow.gif?t=12"> (a test-only Flask route
-that sleeps) so the load event waits for data, then:
+that sleeps) so the load event waits for data; the same injected script can preset
+localStorage (layout, console) from the query string, since headless cannot drag. Then:
 firefox --headless --no-remote --profile <fresh dir> --window-size 1400,2400 --screenshot shot.png URL
 Use a fresh profile each time (cache). Screenshots show end states, not the transitions.
 

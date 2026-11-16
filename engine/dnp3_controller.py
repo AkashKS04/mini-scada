@@ -46,6 +46,7 @@ MASTER_ADDR  = 1
 COMMAND_TTL  = 30      # seconds a queued command stays valid
 STEP_CONFIRM = 20      # seconds for telemetry to confirm a plan step
 AUTO_EVERY   = 3       # seconds between automatic FLISR checks
+RECLOSE_WAIT = 12      # seconds a trip must persist (recloser locked out) before auto FLISR acts
 POLL_SECONDS = 1
 FMT          = "%Y-%m-%d %H:%M:%S"
 
@@ -247,6 +248,8 @@ def auto_flisr():
                 ev = conn.execute("SELECT timestamp_ms FROM soe_log WHERE device_id=? AND "
                                   "event_type='FAULT_LOCATED' ORDER BY id DESC LIMIT 1",
                                   (f["id"],)).fetchone()
+                if ev and (datetime.now() - datetime.strptime(ev[0][:19], FMT)).total_seconds() < RECLOSE_WAIT:
+                    continue                      # may still auto-reclose (transient fault)
                 if not ev or conn.execute(
                         "SELECT 1 FROM switching_plans WHERE feeder_slave_id=? AND kind='FLISR' "
                         "AND created >= ?", (fsid, ev[0][:19])).fetchone():

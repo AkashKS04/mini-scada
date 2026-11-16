@@ -21,6 +21,8 @@ that is the number Wireshark shows.
 Test set (127.0.0.1:20001), one JSON line per request:
     {"cmd": "trip",   "slave_id": 3, "section": 2}   put a fault on a feeder
     {"cmd": "repair", "slave_id": 3}                 crew has repaired it
+    {"cmd": "storm", "action": "start", "intensity": "moderate"|"severe"} / "stop"
+    {"cmd": "storm_state", "since": 0}               lightning feed (see storm.py)
 A fault stays in place until repaired. Closing a breaker or switch that
 energises a faulted section trips the breaker feeding it again.
 
@@ -510,6 +512,25 @@ def trip_feeder(slave_id, section=None):
     return True, f"tripped, fault in section {section}"
 
 
+def transient_trip(slave_id, section=None, dead_time=(5, 9)):
+    """
+    A temporary fault (e.g. lightning flashover): the breaker trips and the
+    auto-recloser restores supply after the dead time, unless someone has
+    operated the breaker meanwhile. Returns (ok, message).
+    """
+    ok, msg = trip_feeder(slave_id, section)
+    if ok:
+        def reclose():
+            time.sleep(random.uniform(*dead_time))
+            store = device_contexts[slave_id]
+            if store.getValues(3, REG_BREAKER, count=1)[0] == BREAKER_TRIPPED:
+                store.setValues(3, REG_FAULT_SECTION, [0])
+                store.setValues(3, REG_BREAKER, [BREAKER_CLOSED])
+                print(f"\n[FAILURE] ✓  Slave {slave_id} → AUTO-RECLOSED (transient fault)\n")
+        threading.Thread(target=reclose, daemon=True).start()
+    return ok, msg
+
+
 def repair_feeder(slave_id):
     """The crew has repaired the faulted cable: the fault indication resets."""
     device = device_registry.get(slave_id)
@@ -532,6 +553,7 @@ def test_set_server():
     print(f"[TEST-SET] Fault injection listening on {TEST_SET_ADDR[0]}:{TEST_SET_ADDR[1]}")
     while True:
         conn, _ = srv.accept()
+        extra = None
         with conn:
             try:
                 conn.settimeout(5)
@@ -540,14 +562,28 @@ def test_set_server():
                     ok, msg = trip_feeder(int(req["slave_id"]), req.get("section"))
                 elif req.get("cmd") == "repair":
                     ok, msg = repair_feeder(int(req["slave_id"]))
+                elif req.get("cmd") == "storm":
+                    ok, msg = (STORM.start(req.get("intensity", "moderate"))
+                               if req.get("action") == "start" else STORM.stop())
+                elif req.get("cmd") == "storm_state":
+                    ok, msg, extra = True, "ok", STORM.state(int(req.get("since", 0)))
                 else:
                     ok, msg = False, "unsupported command"
             except (OSError, ValueError, KeyError, TypeError) as e:
                 ok, msg = False, f"bad request: {e}"
             try:
-                conn.sendall((json.dumps({"ok": ok, "message": msg}) + "\n").encode())
+                reply = {"ok": ok, "message": msg}
+                if extra is not None:
+                    reply["storm"] = extra
+                conn.sendall((json.dumps(reply) + "\n").encode())
             except OSError:
                 pass
+
+
+# Thunderstorm model: strikes near cables cause faults through the same
+# functions the test set uses
+import storm  # noqa: E402
+STORM = storm.Storm(CONFIG, trip_feeder, transient_trip)
 
 
 # ─────────────────────────────────────────────
@@ -766,6 +802,9 @@ async def main():
 
     # Test set: inject faults on demand for demonstrations
     threading.Thread(target=test_set_server, daemon=True).start()
+
+    # Weather: thunderstorm and lightning model (idle until started)
+    threading.Thread(target=STORM.run, daemon=True).start()
 
     # DNP3 outstation: the control path for breaker OPEN / CLOSE
     import dnp3lite
